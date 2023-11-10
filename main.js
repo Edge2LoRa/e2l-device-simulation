@@ -24,10 +24,15 @@ const socketCreator = (host, port) => {
 }
 
 
-const sendPacketToAllGWs = (packet, socket_arrays) => {
+const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
     for (const socket of socket_arrays) {
         if (socket) {
-            socket.send(packet, 0, packet.length);
+            // Generate a random number between 0 and 9
+            const randomValue = Math.floor(Math.random() * 10);
+            // Send the packet if randomValue is less than 8, discard otherwise
+            if (randomValue < frameLoss) {
+                socket.send(packet, 0, packet.length);
+            }
         } else {
             console.error("Invalid socket in the array:", socket);
         }
@@ -39,14 +44,9 @@ function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPac
     return new Promise(async (resolve, reject) => {
         await sleep(Math.floor(Math.random() * 5 ) + 5)
         while( FCnt  < nPackets) {
-            const packet = packetGenerator(DevAddr, AppSKey, NwkSKey, FPort, FCnt);
-            // Generate a random number between 0 and 9
-            const randomValue = Math.floor(Math.random() * 10);
-            // Send the packet if randomValue is less than 8, discard otherwise
-            if (randomValue < frameLoss) {
-                sendPacketToAllGWs(packet, socket_arrays);
-                console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}`)
-            }
+            const packet = packetGenerator(DevAddr, AppSKey, NwkSKey, FPort, FCnt);    
+            sendPacketToAllGWs(packet,frameLoss, socket_arrays);
+            console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}`)
             FCnt = FCnt + 1
             await sleep(sleepTimer); 
         }
