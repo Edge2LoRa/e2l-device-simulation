@@ -48,9 +48,9 @@ function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPac
                 console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}`)
             }
             FCnt = FCnt + 1
-            await sleep(sleepTimer); //4)duty cycle che andrà passato quando si chiama simulateDevice, o sleep(rand(start, end))
+            await sleep(sleepTimer); 
         }
-        return resolve("Everything Alright");//5)qui inserirei l'attivazione del device, ma forse ho capito male l'assignment
+        return resolve("Everything Alright");
     });
 }
 
@@ -109,23 +109,3 @@ function main(){
     
 }
 main();
-
-/*Improvements:
-    -Dare al main:
-        1)numero di pacchetti totali da inviare e renderlo variabile
-        2)quanti devices totali creare
-        3)quanti devices devono essere edge/legacy -> Potremmo modificare il ciclo for dandogli due parametri i e j, 
-        dove i+j sono il numero di device totali che estraggo dal json, i primi device li setta con FPort 2, dopo i iterazioni setta i successivi con FPort a 4
-        3.1)ho cambiato la logica del 3) usando un ratio legacy/edge
-        4)settare duty cycle
-        5)periodo di attivazione di ogni device
-    Tutto questo potrebbe essere inserito in un json oppure in una funzione specifica per ogni esperimento cosi da rendere modulare
-*/
-
-
-/*
-
-Da fare, ogni volta che genero il pacchetto funzione random da 0 a 9, se minore di 8 lo mando, se maggiore o = lo scarto
-
-entro nei 2 rasp, accendo i 2 proxy e mi mando i pacchetti e mi metto su nova per mandare i pacchetti
-*/

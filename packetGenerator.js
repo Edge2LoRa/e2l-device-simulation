@@ -21,7 +21,6 @@ const lora_packet = require("lora-packet");
     );
     const payloadBase64 = constructedPacket.getPHYPayload().toString("base64");
     const size = payloadBase64.length;
-    const date = Date.now();
     let jsonUDP = {
       rxpk: [
         {
@@ -40,7 +39,6 @@ const lora_packet = require("lora-packet");
         }
       ]
     };
-    console.log(jsonUDP)
     jsonPacket = JSON.stringify(jsonUDP);
     /*headerPKTFWD[0] == PROTOCOL_VERSION == 2
     headerPKTFWD[1] == numero random
