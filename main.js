@@ -74,7 +74,7 @@ function main(){
     for (const gateway of gatewayData.gateways) {
         promise_socket_arrays.push(socketCreator(gateway.host, gateway.port))
     }
-    Promise.all(promise_socket_arrays).then((socket_arrays) => {
+    Promise.all(promise_socket_arrays).then(async (socket_arrays) => {
         let promise_device_arrays = []
         for(const index in deviceData) {
             if (index >= deviceNumber){
@@ -95,8 +95,8 @@ function main(){
             }
             // Generate a random number between FCnt and FCnt + 10
             const nPackets = Math.floor(Math.random() * (maxPacket - minPacket)) + minPacket;
+            await sleep(deviceTimer);
             promise_device_arrays.push(simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, frameLoss, socket_arrays))
-            sleep(deviceTimer);
         }
         Promise.all(promise_device_arrays).then(() => {
             console.log("Experiment Ended Successfully")
