@@ -62,6 +62,7 @@ function main(){
     const experiment = experimentData.experiment[0]; // Assuming there's only one experiment in the array
     const ratio = experiment.ratio;
     const sleepTimer = experiment.sleepTimer;
+    const deviceTimer = experiment.deviceTimer;
     const deviceNumber = experiment.deviceNumber;
     const minPacket = experiment.minPacket;
     const maxPacket = experiment.maxPacket;
@@ -95,6 +96,7 @@ function main(){
             // Generate a random number between FCnt and FCnt + 10
             const nPackets = Math.floor(Math.random() * (maxPacket - minPacket)) + minPacket;
             promise_device_arrays.push(simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, frameLoss, socket_arrays))
+            sleep(deviceTimer);
         }
         Promise.all(promise_device_arrays).then(() => {
             console.log("Experiment Ended Successfully")
