@@ -89,7 +89,7 @@ function main(){
                 FPort = 2 //legacy
                 currentRatio = 0
             }else{
-                FPort = 4 //edge devo rimette 4 poi
+                FPort = 4 //edge 
                 currentRatio ++
             }
             // Generate a random number between FCnt and FCnt + 10
