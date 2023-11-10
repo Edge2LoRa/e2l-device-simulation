@@ -21,24 +21,26 @@ const lora_packet = require("lora-packet");
     );
     const payloadBase64 = constructedPacket.getPHYPayload().toString("base64");
     const size = payloadBase64.length;
+    const date = Date.now();
     let jsonUDP = {
       rxpk: [
         {
-          tmst: 2933348684,
+          tmst: 23847293,
           chan: 7,
           rfch: 0,
-          freq: 867.9,
+          freq: 868.1,
           stat: 1,
           modu: 'LORA',
           datr: 'SF7BW125',
           codr: '4/5',
           lsnr: 9.2,
-          rssi: -30,
+          rssi: -33,
           size: size,
           data: payloadBase64,
         }
       ]
     };
+    console.log(jsonUDP)
     jsonPacket = JSON.stringify(jsonUDP);
     /*headerPKTFWD[0] == PROTOCOL_VERSION == 2
     headerPKTFWD[1] == numero random
