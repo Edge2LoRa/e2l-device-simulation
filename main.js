@@ -55,7 +55,7 @@ const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
             // Generate a random number between 0 and 9
             const randomValue = Math.floor(Math.random() * 10);
             // Send the packet if randomValue is less than 8, discard otherwise
-            if (randomValue < frameLoss) {
+            if (randomValue > frameLoss) {
                 socket.send(packet, 0, packet.length);
             }
         } else {
