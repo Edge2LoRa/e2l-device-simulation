@@ -105,6 +105,7 @@ function main(){
     }
     Promise.all(promise_socket_arrays).then(async (socket_arrays) => {
         let promise_device_arrays = []
+        currentRatio = 0;
         for(const index in deviceData) {
             if (index >= deviceNumber){
                 break;
@@ -114,7 +115,6 @@ function main(){
             const AppSKey = device.session.keys.app_s_key.key;
             const NwkSKey = device.session.keys.f_nwk_s_int_key.key;
             //ratio used is legacy/edge, it means 1 leagacy every n edge devices
-            currentRatio = 0;
             if (currentRatio === ratio) {
                 FPort = 2 //legacy
                 currentRatio = 0
