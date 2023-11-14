@@ -5,6 +5,7 @@ const sleep = promisify(setTimeout);
 const dgram = require('dgram');
 const { getRandomValues } = require('crypto');
 const FCnt = 1 //or incremental
+let activeDevices = 0;
 
 const socketCreator = (host, port) => {
     return new Promise((resolve, reject) => {
@@ -22,7 +23,31 @@ const socketCreator = (host, port) => {
         }
     })
 }
-
+function calculateLoss() {
+    const P = 20; // pkt size in byte
+    const s = 1 / 90; // pkt/sec
+  
+    const SF_array = [7, 8, 9, 10, 11, 12];
+    const SF_index = 0;
+    const BW = 125000;
+    const CR = 1;
+    const ToA = 0.0566; // toa_calc(SF_array[SF_index], BW, P, CR);
+  
+    const G = activeDevices * ToA * s;
+  
+    const eta = 2.9;
+    const sir = 4; // 2.7; // 0.5; 2.7-->6dB CC in lorasim
+    const alpha = Math.pow(10, sir / 10 / eta);
+    const Sc =
+      (1 / (2 * Math.pow(alpha, 2))) * (1 - Math.exp(-2 * G)) +
+      G * (1 - 1 / Math.pow(alpha, 2)) * Math.exp(-2 * G);
+  
+    const DER_CC = Sc / G;
+    const loss = (1 - DER_CC) * 100; // perdita in percentuale
+  
+    return loss;
+  }
+  
 
 const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
     for (const socket of socket_arrays) {
@@ -40,16 +65,20 @@ const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
 };
 
 
-function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, frameLoss, socket_arrays) {
+function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, socket_arrays) {
     return new Promise(async (resolve, reject) => {
+        activeDevices++; // Increment activeDevices when simulating a device
         await sleep(Math.floor(Math.random() * 5 ) + 5)
         while( FCnt  < nPackets) {
-            const packet = packetGenerator(DevAddr, AppSKey, NwkSKey, FPort, FCnt);    
+            const packet = packetGenerator(DevAddr, AppSKey, NwkSKey, FPort, FCnt);
+            const frameLoss = calculateLoss(); // Calculate frame loss using activeDevices
+            console.log(frameLoss);    
             sendPacketToAllGWs(packet,frameLoss, socket_arrays);
             console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}`)
             FCnt = FCnt + 1
             await sleep(sleepTimer); 
         }
+        activeDevices--; // Decrement activeDevices when simulation is done
         return resolve("Everything Alright");
     });
 }
@@ -66,7 +95,7 @@ function main(){
     const deviceNumber = experiment.deviceNumber;
     const minPacket = experiment.minPacket;
     const maxPacket = experiment.maxPacket;
-    const frameLoss = experiment.frameLoss;
+    //const frameLoss = experiment.frameLoss; // prima del ciclo for parto da questo frameloss, poi lo modifico prima di simulare ogni device
     const deviceList = experiment.deviceList;
     // Read the JSON file containing device information
     const deviceData = JSON.parse(fs.readFileSync(deviceList));
@@ -93,10 +122,9 @@ function main(){
                 FPort = 4 //edge 
                 currentRatio ++
             }
-            // Generate a random number between FCnt and FCnt + 10
             const nPackets = Math.floor(Math.random() * (maxPacket - minPacket)) + minPacket;
             await sleep(deviceTimer);
-            promise_device_arrays.push(simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, frameLoss, socket_arrays))
+            promise_device_arrays.push(simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, socket_arrays))
         }
         Promise.all(promise_device_arrays).then(() => {
             console.log("Experiment Ended Successfully")
