@@ -52,8 +52,8 @@ function calculateLoss() {
 const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
     for (const socket of socket_arrays) {
         if (socket) {
-            // Generate a random number between 0 and 9
-            const randomValue = Math.floor(Math.random() * 10);
+            // Generate a random number between 0 and 100
+            const randomValue = Math.floor(Math.random() * 100);
             // Send the packet if randomValue is less than 8, discard otherwise
             if (randomValue > frameLoss) {
                 socket.send(packet, 0, packet.length);
