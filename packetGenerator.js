@@ -2,6 +2,7 @@ const lora_packet = require("lora-packet");
 
  function packetGenerator(DevAddr, AppSKey, NwkSKey, FPort, FCnt) {
     // Construct the LoRa packet
+    const date = Date.now();
     const constructedPacket = lora_packet.fromFields(
       {
         FPort: FPort, //FPort = 4 Device edge / FPort = 2 Device Legacy
@@ -14,18 +15,17 @@ const lora_packet = require("lora-packet");
           FPending: false,
         },
         FCnt: FCnt, //counter
-        payload: "test", // Replace with your payload
+        payload: date.toString(), // Replace with your payload
       },
       Buffer.from(AppSKey, "hex"),
       Buffer.from(NwkSKey, "hex")
     );
     const payloadBase64 = constructedPacket.getPHYPayload().toString("base64");
     const size = payloadBase64.length;
-    const date = Math.floor(Date.now()/1000);
     let jsonUDP = {
       rxpk: [
         {
-          tmst: date,
+          tmst: Math.floor(date/1000),
           chan: 7,
           rfch: 0,
           freq: 868.1,
