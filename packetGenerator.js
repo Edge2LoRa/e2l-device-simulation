@@ -21,10 +21,11 @@ const lora_packet = require("lora-packet");
     );
     const payloadBase64 = constructedPacket.getPHYPayload().toString("base64");
     const size = payloadBase64.length;
+    const date = Math.floor(Date.now()/1000);
     let jsonUDP = {
       rxpk: [
         {
-          tmst: 23847293,
+          tmst: date,
           chan: 7,
           rfch: 0,
           freq: 868.1,
