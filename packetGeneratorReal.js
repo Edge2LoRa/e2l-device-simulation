@@ -1,6 +1,6 @@
 const lora_packet = require("lora-packet");
 
- function packetGenerator(DevAddr, AppSKey, NwkSKey, FPort, FCnt) {
+ function packetGeneratorReal(DevAddr, AppSKey, NwkSKey, FPort, FCnt, timestamp, frequency, data_rate, coding_rate,gtw_channel, gtw_rssi, gtw_snr, payload) {
     // Construct the LoRa packet
     const date = Date.now();
     const constructedPacket = lora_packet.fromFields(
@@ -15,7 +15,7 @@ const lora_packet = require("lora-packet");
           FPending: false,
         },
         FCnt: FCnt, //counter
-        payload: date.toString(), // Replace with your payload
+        payload: payload, // Replace with your payload
       },
       Buffer.from(AppSKey, "hex"),
       Buffer.from(NwkSKey, "hex")
@@ -25,21 +25,20 @@ const lora_packet = require("lora-packet");
     let jsonUDP = {
       rxpk: [
         {
-          timestamp: date,
-          chan: 7,
-          rfch: 0,
+          timestamp: timestamp,
           freq: 868.1,
-          stat: 1,
           modu: 'LORA',
-          datr: 'SF7BW125',
-          codr: '4/5',
-          lsnr: 9.2,
-          rssi: -33,
+          datr: data_rate,
+          codr: coding_rate,
+          gtw_channel: gtw_channel,
+          gtw_rssi: gtw_rssi,
+          gtw_snr: gtw_snr,
           size: size,
           data: payloadBase64,
         }
       ]
     };
+    console.log(gtw_rssi)
     jsonPacket = JSON.stringify(jsonUDP);
     /*headerPKTFWD[0] == PROTOCOL_VERSION == 2
     headerPKTFWD[1] == numero random
@@ -59,4 +58,4 @@ const lora_packet = require("lora-packet");
     mergedArray.set(json, headerPKTFWD.length); // Copy json to mergedArray after headerPKTFWD.   
     return mergedArray;
 }
-module.exports = { packetGenerator };
+module.exports = { packetGeneratorReal };
