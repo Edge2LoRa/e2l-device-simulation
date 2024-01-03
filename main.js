@@ -61,20 +61,54 @@ function calculateLoss() {
   }
   
 
+let gatewayCounters = []; // Defined outside the function
+let discardedPacketsCount = 0;
+let successfullySentToAllGatewaysCount = 0; 
+
 const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
-    for (const socket of socket_arrays) {
+    // Initialize the gatewayCounters array with zeros if it's the first call
+    if (gatewayCounters.length === 0) {
+        gatewayCounters = new Array(socket_arrays.length).fill(0);
+    }
+
+    let packetSentToAllGateways = true; // Flag to check if the packet is sent to all gateways
+
+    for (let i = 0; i < socket_arrays.length; i++) {
+        const socket = socket_arrays[i];
         if (socket) {
-            // Generate a random number between 0 and 100
             const randomValue = Math.floor(Math.random() * 100);
-            // Send the packet if randomValue is less than 8, discard otherwise
             if (randomValue > frameLoss) {
                 socket.send(packet, 0, packet.length);
+                gatewayCounters[i]++;
+            } else {
+                discardedPacketsCount++;
+                packetSentToAllGateways = false; // Packet not sent to this gateway
             }
         } else {
             console.error("Invalid socket in the array:", socket);
+            packetSentToAllGateways = false; // Invalid socket treated as a failed send
         }
     }
+
+    // Increment if the packet was sent to all gateways in this iteration
+    if (packetSentToAllGateways) {
+        successfullySentToAllGatewaysCount++;
+    }
+
+    // Logging
+    gatewayCounters.forEach((count, index) => {
+        console.log(`Gateway ${index + 1} sent packets count: ${count}`);
+    });
+    console.log(`Total discarded packets count: ${discardedPacketsCount}`);
+    console.log(`Packets successfully sent to all gateways count: ${successfullySentToAllGatewaysCount}`);
 };
+
+  
+
+
+
+
+
 
 
 function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, socket_arrays) {
