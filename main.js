@@ -63,7 +63,9 @@ function calculateLoss() {
 
 let gatewayCounters = []; // Defined outside the function
 let discardedPacketsCount = 0;
-let successfullySentToAllGatewaysCount = 0; 
+let successfullySentToAllGatewaysCount = 0;
+let lastTimeAccessed = 0;
+let currentDate = 0;
 
 const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
     // Initialize the gatewayCounters array with zeros if it's the first call
@@ -94,13 +96,16 @@ const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
     if (packetSentToAllGateways) {
         successfullySentToAllGatewaysCount++;
     }
-
-    // Logging
-    gatewayCounters.forEach((count, index) => {
-        console.log(`Gateway ${index + 1} sent packets count: ${count}`);
-    });
-    console.log(`Total discarded packets count: ${discardedPacketsCount}`);
-    console.log(`Packets successfully sent to all gateways count: ${successfullySentToAllGatewaysCount}`);
+    currentDate = Date.now/1000;
+    if ((lastTimeAccessed - currentDate) > 5){
+        // Logging
+        gatewayCounters.forEach((count, index) => {
+            console.log(`Gateway ${index + 1} sent packets count: ${count}`);
+        });
+        console.log(`Total discarded packets count: ${discardedPacketsCount}`);
+        console.log(`Packets successfully sent to all gateways count: ${successfullySentToAllGatewaysCount}`);
+        lastTimeAccessed = currentDate;
+    }
 };
 
   

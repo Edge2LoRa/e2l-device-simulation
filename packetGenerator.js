@@ -25,7 +25,7 @@ const lora_packet = require("lora-packet");
     let jsonUDP = {
       rxpk: [
         {
-          timestamp: date,
+          tmst: Math.floor(date/1000),
           chan: 7,
           rfch: 0,
           freq: 868.1,
