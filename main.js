@@ -97,7 +97,7 @@ const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
         successfullySentToAllGatewaysCount++;
     }
     currentDate = Date.now/1000;
-    if ((lastTimeAccessed - currentDate) > 5){
+    if ((currentDate - lastTimeAccessed) > 5){
         // Logging
         gatewayCounters.forEach((count, index) => {
             console.log(`Gateway ${index + 1} sent packets count: ${count}`);
@@ -123,9 +123,9 @@ function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPac
         while( FCnt  < nPackets) {
             const packet = packetGenerator(DevAddr, AppSKey, NwkSKey, FPort, FCnt);
             const frameLoss = calculateLoss(); // Calculate frame loss using activeDevices
-            console.log(frameLoss);    
+            //console.log(frameLoss);    
             sendPacketToAllGWs(packet,frameLoss, socket_arrays);
-            console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`)
+            //console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`)
             FCnt = FCnt + 1
             await sleep(sleepTimer); 
         }
