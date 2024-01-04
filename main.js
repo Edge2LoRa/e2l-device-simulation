@@ -96,7 +96,7 @@ const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
     if (packetSentToAllGateways) {
         successfullySentToAllGatewaysCount++;
     }
-    currentDate = Date.now/1000;
+    currentDate = Date.now()/1000;
     if ((currentDate - lastTimeAccessed) > 5){
         // Logging
         gatewayCounters.forEach((count, index) => {
