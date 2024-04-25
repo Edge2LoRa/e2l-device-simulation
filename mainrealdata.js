@@ -91,9 +91,9 @@ function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPac
         activeDevices++; // Increment activeDevices when simulating a device
         await sleep(Math.floor(Math.random() * 5 ) + 5)
         while(FCnt < nPackets) {
-            const packet = packetGeneratorReal(DevAddr, AppSKey, NwkSKey, FPort, FCnt, device.timestamp, device.frequency, device.data_rate, device.coding_rate,device.gtw_channel, device.gtw_rssi, device.gtw_snr,device.battery, payload);
+            const packet = packetGeneratorReal(DevAddr, AppSKey, NwkSKey, FPort, FCnt, device.timestamp, device.frequency, device.data_rate, device.coding_rate,device.gtw_channel, device.gtw_rssi, device.gtw_snr,payload);
             const frameLoss = calculateLoss(); // Calculate frame loss using activeDevices
-            console.log(frameLoss);    
+            // console.log(frameLoss);    
             sendPacketToAllGWs(packet, frameLoss, socket_arrays);
             console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`)
             FCnt = FCnt + 1
@@ -137,7 +137,12 @@ function main(){
             const DevAddr = device.deviceid;
             const AppSKey = "18709C1192FEAA38F477BF6B0A6CB7E5";
             const NwkSKey = "3FCAD3200F0FA7AA500A67AE5A72B1B0";
-            const payload = device.soil_hum;
+            //const payload = device.soil_temp;
+            const array = new Int32Array([device.soil_temp, device.soil_hum])
+            const buffer = Buffer.from(array);
+            const payload = buffer.toString('base64');
+            console.log(payload)
+
     
             // Ratio used is legacy/edge, it means 1 legacy every n edge devices
             if (currentRatio === ratio) {
