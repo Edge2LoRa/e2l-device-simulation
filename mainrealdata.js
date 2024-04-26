@@ -138,11 +138,11 @@ function main(){
             const AppSKey = "18709C1192FEAA38F477BF6B0A6CB7E5";
             const NwkSKey = "3FCAD3200F0FA7AA500A67AE5A72B1B0";
             //const payload = device.soil_temp;
-            const array = new Int32Array([device.soil_temp, device.soil_hum])
-            const buffer = Buffer.from(array);
+            const array = [parseFloat(device.soil_temp), parseFloat(device.soil_hum)]
+            const buffer = Buffer.from(JSON.stringify(array));
             const payload = buffer.toString('base64');
-            console.log(payload)
-
+            //console.log(payload)
+            
     
             // Ratio used is legacy/edge, it means 1 legacy every n edge devices
             if (currentRatio === ratio) {
