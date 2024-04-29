@@ -62,8 +62,11 @@ function calculateLoss() {
   
 
 let gatewayCounters = []; // Defined outside the function
+let gatewayCountersLast = []; // Defined outside the function
 let discardedPacketsCount = 0;
+let discardedPacketsLast = 0;
 let successfullySentToAllGatewaysCount = 0;
+let successfullySentToAllGatewaysLast = 0;
 let lastTimeAccessed = 0;
 let currentDate = 0;
 
@@ -71,6 +74,9 @@ const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
     // Initialize the gatewayCounters array with zeros if it's the first call
     if (gatewayCounters.length === 0) {
         gatewayCounters = new Array(socket_arrays.length).fill(0);
+    }
+    if (gatewayCountersLast.length === 0) {
+        gatewayCountersLast = new Array(socket_arrays.length).fill(0);
     }
 
     let packetSentToAllGateways = true; // Flag to check if the packet is sent to all gateways
@@ -100,10 +106,14 @@ const sendPacketToAllGWs = (packet, frameLoss, socket_arrays) => {
     if ((currentDate - lastTimeAccessed) > 5){
         // Logging
         gatewayCounters.forEach((count, index) => {
-            console.log(`Gateway ${index + 1} sent packets count: ${count}`);
+            console.log(`Gateway ${index + 1} sent packets count: ${count - gatewayCountersLast[index]}`);
+	    gatewayCountersLast[index] = count;
         });
-        console.log(`Total discarded packets count: ${discardedPacketsCount}`);
-        console.log(`Packets successfully sent to all gateways count: ${successfullySentToAllGatewaysCount}`);
+        console.log(`Total discarded packets count: ${discardedPacketsCount - discardedPacketsLast}`);
+	discardedPacketsLast = discardedPacketsCount;
+        console.log(`Packets successfully sent to all gateways count: ${successfullySentToAllGatewaysCount - successfullySentToAllGatewaysLast}`);
+	successfullySentToAllGatewaysLast = successfullySentToAllGatewaysCount
+	console.log(`Number of devices: ${activeDevices}`);
         lastTimeAccessed = currentDate;
     }
 };
