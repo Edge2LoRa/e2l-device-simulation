@@ -25,20 +25,23 @@ const lora_packet = require("lora-packet");
     let jsonUDP = {
       rxpk: [
         {
-          timestamp: timestamp,
+          time: new Date().toISOString(),
+          tmst: Number(timestamp),
+          chan: Number(gtw_channel),
+          rfch: 0,
           freq: 868.1,
+          stat: 1,
           modu: 'LORA',
           datr: data_rate,
           codr: coding_rate,
-          gtw_channel: gtw_channel,
-          gtw_rssi: gtw_rssi,
-          gtw_snr: gtw_snr,
+          lsnr: Number(gtw_snr),
+          rssi: Number(gtw_rssi),
           size: size,
           data: payloadBase64,
         }
       ]
     };
-    console.log(gtw_rssi)
+    
     jsonPacket = JSON.stringify(jsonUDP);
     /*headerPKTFWD[0] == PROTOCOL_VERSION == 2
     headerPKTFWD[1] == numero random

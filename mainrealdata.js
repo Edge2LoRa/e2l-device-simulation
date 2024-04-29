@@ -76,7 +76,7 @@ function calculateLoss() {
 };
 
 
-function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, socket_arrays, payload, deviceList) {
+function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, socket_arrays,deviceList){
     return new Promise(async (resolve, reject) => {
         // Load and parse the JSON file
         const deviceData = JSON.parse(fs.readFileSync(deviceList));
@@ -87,18 +87,29 @@ function simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPac
             console.log(`No device found with deviceid ${DevAddr}. Simulation ends for this device.`);
             return resolve("Device not found");
         }
+        
 
         activeDevices++; // Increment activeDevices when simulating a device
         await sleep(Math.floor(Math.random() * 5 ) + 5)
-        while(FCnt < nPackets) {
-            const packet = packetGeneratorReal(DevAddr, AppSKey, NwkSKey, FPort, FCnt, device.timestamp, device.frequency, device.data_rate, device.coding_rate,device.gtw_channel, device.gtw_rssi, device.gtw_snr,device.battery, payload);
+        const packetsToSend = deviceData.filter(d => d.deviceid === DevAddr);
+        
+        for (const packetData of packetsToSend) {
+            if (FCnt >= nPackets) {
+                break;
+            }
+            //encode the payload
+            const array = [parseFloat(packetData.soil_temp), parseFloat(packetData.soil_hum)]
+            const payload = Buffer.from(JSON.stringify(array));
+            const packet = packetGeneratorReal(DevAddr, AppSKey, NwkSKey, FPort, FCnt, packetData.timestamp, packetData.frequency, packetData.data_rate, packetData.coding_rate, packetData.gtw_channel, packetData.gtw_rssi, packetData.gtw_snr, payload);
             const frameLoss = calculateLoss(); // Calculate frame loss using activeDevices
-            console.log(frameLoss);    
+            
             sendPacketToAllGWs(packet, frameLoss, socket_arrays);
-            console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`)
-            FCnt = FCnt + 1
+            console.log(`Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`);
+            
+            FCnt++; // Increment FCnt for the next packet
             await sleep(sleepTimer); 
         }
+        
         activeDevices--; // Decrement activeDevices when simulation is done
         return resolve("Everything Alright");
     });
@@ -127,8 +138,7 @@ function main(){
         let promise_device_arrays = []
         currentRatio = 0;
         const processedDevices = new Set();
-        for (const index in deviceData) {
-            
+        for(const index in deviceData) {
             const device = deviceData[index];
             if (processedDevices.has(device.deviceid)) {
                 continue; // Skip if this deviceid has already been processed
@@ -137,8 +147,8 @@ function main(){
             const DevAddr = device.deviceid;
             const AppSKey = "18709C1192FEAA38F477BF6B0A6CB7E5";
             const NwkSKey = "3FCAD3200F0FA7AA500A67AE5A72B1B0";
-            const payload = device.soil_hum;
-    
+            //const payload = device.soil_temp;
+            
             // Ratio used is legacy/edge, it means 1 legacy every n edge devices
             if (currentRatio === ratio) {
                 FPort = 2; // Legacy
@@ -149,7 +159,7 @@ function main(){
             }
             const nPackets = Math.floor(Math.random() * (maxPacket - minPacket)) + minPacket;
             //await sleep(deviceTimer);
-            promise_device_arrays.push(simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, socket_arrays, payload, deviceList));
+            promise_device_arrays.push(simulateDevice(DevAddr, AppSKey, NwkSKey, FPort, FCnt, sleepTimer, nPackets, socket_arrays,deviceList));
             processedDevices.add(device.deviceid);
         }
         Promise.all(promise_device_arrays).then(() => {
