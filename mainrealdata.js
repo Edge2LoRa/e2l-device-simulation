@@ -177,7 +177,6 @@ function main() {
   Promise.all(promise_socket_arrays).then(async (socket_arrays) => {
     let promise_device_arrays = [];
     currentRatio = 0;
-    const processedDevices = new Set();
     for (const index in deviceList) {
       if (index > deviceNumber) {
         break;
@@ -216,7 +215,6 @@ function main() {
           packetsToSend
         )
       );
-      processedDevices.add(device.deviceid);
       await sleep(deviceTimer);
     }
     Promise.all(promise_device_arrays)
