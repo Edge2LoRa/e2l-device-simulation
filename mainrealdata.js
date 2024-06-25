@@ -185,8 +185,8 @@ function main() {
       const deviceInfo = deviceList[index];
 
       const DevAddr = deviceInfo.session.dev_addr;
-      const AppSKey = deviceInfo.session.keys.app_s_key;
-      const NwkSKey = deviceInfo.session.keys.f_nwk_s_int_key;
+      const AppSKey = deviceInfo.session.keys.app_s_key.key;
+      const NwkSKey = deviceInfo.session.keys.f_nwk_s_int_key.key;
       //const payload = device.soil_temp;
       const packetsToSend =
         formattedPacketData[index % formattedPacketData.length];
