@@ -107,8 +107,6 @@ function simulateDevice(
         NwkSKey,
         FPort,
         FCnt,
-        packetData.timestamp,
-        packetData.frequency,
         packetData.data_rate,
         packetData.coding_rate,
         packetData.gtw_channel,
@@ -145,6 +143,7 @@ function main() {
   );
   const experiment = experimentData.experiment[0]; // Assuming there's only one experiment in the array
   const ratio = experiment.ratio;
+  const deviceNumber = experiment.deviceNumber;
   const sleepTimer = experiment.sleepTimer;
   const deviceTimer = experiment.deviceTimer;
   const minPacket = experiment.minPacket;
@@ -153,6 +152,24 @@ function main() {
   const frameLoss = experiment.frameLoss;
   // Read the JSON file containing device information
   const packetData = JSON.parse(fs.readFileSync(packetDataFilepath));
+  const deviceListpath = experiment.deviceList;
+  const deviceList = JSON.parse(fs.readFileSync(deviceListpath));
+
+  let formattedPacketData = [];
+  let processedDeviceId = [];
+  for (const packetInfo of packetData) {
+    if (!processedDeviceId.includes(packetInfo.deviceid)) {
+      devicePackets = [];
+      for (const packetInfo2 of packetData) {
+        if (packetInfo2.deviceid === packetInfo.deviceid) {
+          devicePackets.push(packetInfo2);
+        }
+      }
+      formattedPacketData.push(devicePackets);
+      processedDeviceId.push(packetInfo.deviceid);
+    }
+  }
+
   let promise_socket_arrays = [];
   for (const gateway of gatewayData.gateways) {
     promise_socket_arrays.push(socketCreator(gateway.host, gateway.port));
@@ -161,22 +178,18 @@ function main() {
     let promise_device_arrays = [];
     currentRatio = 0;
     const processedDevices = new Set();
-    for (const index in packetData) {
-      const device = packetData[index];
-      if (processedDevices.has(device.deviceid)) {
-        continue; // Skip if this deviceid has already been processed
+    for (const index in deviceList) {
+      if (index > deviceNumber) {
+        break;
       }
+      const deviceInfo = deviceList[index];
 
-      const DevAddr = device.deviceid;
-      const AppSKey = "18709C1192FEAA38F477BF6B0A6CB7E5";
-      const NwkSKey = "3FCAD3200F0FA7AA500A67AE5A72B1B0";
+      const DevAddr = deviceInfo.session.dev_addr;
+      const AppSKey = deviceInfo.session.keys.app_s_key;
+      const NwkSKey = deviceInfo.session.keys.f_nwk_s_int_key;
       //const payload = device.soil_temp;
-      const packetsToSend = [];
-      for (const packet of packetData) {
-        if (packet.deviceid === DevAddr) {
-          packetsToSend.push(packet);
-        }
-      }
+      const packetsToSend =
+        formattedPacketData[index % formattedPacketData.length];
 
       // Ratio used is legacy/edge, it means 1 legacy every n edge devices
       if (currentRatio === ratio) {
