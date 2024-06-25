@@ -38,7 +38,7 @@ function packetGeneratorReal(
     rxpk: [
       {
         time: now.toISOString(),
-        tmst: Number(now.now() / 1000),
+        tmst: parseInt(now.getTime() / 1000),
         chan: Number(gtw_channel),
         rfch: 0,
         freq: 868.1,
