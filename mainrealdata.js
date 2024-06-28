@@ -194,9 +194,11 @@ function main() {
       if (currentRatio === ratio) {
         FPort = 2; // Legacy
         currentRatio = 0;
+        console.log("CREATING LEGACY DEVICE");
       } else {
         FPort = 4; // Edge
         currentRatio++;
+        console.log("CREATING EDGE DEVICE");
       }
       const nPackets =
         Math.floor(Math.random() * (maxPacket - minPacket)) + minPacket;
