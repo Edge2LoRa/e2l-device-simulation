@@ -178,7 +178,7 @@ function main() {
     let promise_device_arrays = [];
     currentRatio = 0;
     for (const index in deviceList) {
-      if (index > deviceNumber) {
+      if (index >= deviceNumber) {
         break;
       }
       const deviceInfo = deviceList[index];
