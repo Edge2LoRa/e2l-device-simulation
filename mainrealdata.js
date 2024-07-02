@@ -91,7 +91,8 @@ function simulateDevice(
   return new Promise(async (resolve, reject) => {
     activeDevices++; // Increment activeDevices when simulating a device
 
-    for (const packetData of packetsToSend) {
+    for (const index in packetsToSend) {
+      const packetData = packetsToSend[index % packetsToSend.length];
       if (FCnt >= nPackets) {
         break;
       }
@@ -119,9 +120,9 @@ function simulateDevice(
         frameLoss_value >= 0 ? frameLoss_value : calculateLoss();
 
       sendPacketToAllGWs(packet, frameLoss, socket_arrays);
-      console.log(
-        `Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`
-      );
+      // console.log(
+      //   `Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`
+      // );
 
       FCnt++; // Increment FCnt for the next packet
       await sleep(sleepTimer);
@@ -159,10 +160,10 @@ function main() {
   let processedDeviceId = [];
   for (const packetInfo of packetData) {
     if (!processedDeviceId.includes(packetInfo.deviceid)) {
-      devicePackets = [];
+      let devicePackets = [];
       for (const packetInfo2 of packetData) {
         if (packetInfo2.deviceid === packetInfo.deviceid) {
-          devicePackets.push(packetInfo2);
+          devicePackets.push(JSON.parse(JSON.stringify(packetInfo2)));
         }
       }
       formattedPacketData.push(devicePackets);
