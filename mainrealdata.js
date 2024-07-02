@@ -97,6 +97,7 @@ function simulateDevice(
         break;
       }
       //encode the payload
+      console.log(packetData.soil_temp);
       const array = [
         parseFloat(packetData.soil_temp),
         parseFloat(packetData.soil_hum),
@@ -120,9 +121,9 @@ function simulateDevice(
         frameLoss_value >= 0 ? frameLoss_value : calculateLoss();
 
       sendPacketToAllGWs(packet, frameLoss, socket_arrays);
-      // console.log(
-      //   `Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`
-      // );
+      console.log(
+        `Packet sent with DevAddr: ${DevAddr}, FCnt: ${FCnt}, Devices: ${activeDevices}`
+      );
 
       FCnt++; // Increment FCnt for the next packet
       await sleep(sleepTimer);
