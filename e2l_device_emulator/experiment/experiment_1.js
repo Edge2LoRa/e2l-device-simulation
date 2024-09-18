@@ -1,6 +1,6 @@
 const Device = require("../device");
 
-const Experiment = class {
+const Experiment1 = class {
   constructor(
     gatewayList,
     deviceNumber,
@@ -104,4 +104,4 @@ const Experiment = class {
   };
 };
 
-export default Experiment;
+module.exports = Experiment1;

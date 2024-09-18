@@ -45,3 +45,5 @@ class PacketForwarder {
     return mergedArray;
   };
 }
+
+module.exports = PacketForwarder;

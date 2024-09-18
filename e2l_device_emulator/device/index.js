@@ -45,4 +45,4 @@ const Device = class {
   };
 };
 
-export default Device;
+module.exports = Device;
