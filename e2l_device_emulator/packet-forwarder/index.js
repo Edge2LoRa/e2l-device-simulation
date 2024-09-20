@@ -1,9 +1,44 @@
+const dgram = require("dgram");
 class PacketForwarder {
-  constructor() {}
+  constructor(id, host, port) {
+    this.id = id;
+    this.host = host;
+    this.port = port;
+  }
 
-  send = (packetInfo, frameLoss) => {
-    const base64Packet = packetInfo.base64Packet;
+  sendPacket = (packet, frameLoss) => {
+    return new Promise((resolve, reject) => {
+      const socket = dgram.createSocket("udp4");
+      socket.connect(this.port, this.host, (err) => {
+        if (err) {
+          console.log(err);
+          return reject(err);
+        } else {
+          socket.send(packet, 0, packet.length, (err) => {
+            if (err) {
+              console.log(err);
+              return reject(err);
+            } else {
+              socket.close();
+              return resolve();
+            }
+          });
+        }
+      });
+    });
+  };
+
+  encodePacket = (base64Packet) => {
+    const now = new Date();
     const size = base64Packet.length;
+
+    // TODO: GET FROM DATASET
+    const gtw_channel = 7;
+    const gtw_rssi = -33;
+    const gtw_snr = 9.2;
+    const data_rate = "SF7BW125";
+    const coding_rate = "4/5";
+
     let jsonUDP = {
       rxpk: [
         {
@@ -23,7 +58,7 @@ class PacketForwarder {
         },
       ],
     };
-    jsonPacket = JSON.stringify(jsonUDP);
+    const jsonPacket = JSON.stringify(jsonUDP);
     /*headerPKTFWD[0] == PROTOCOL_VERSION == 2
     headerPKTFWD[1] == numero random
     headerPKTFWD[2] == numero random

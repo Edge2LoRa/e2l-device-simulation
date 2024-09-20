@@ -1,7 +1,8 @@
 const lora_packet = require("lora-packet");
 
 const Device = class {
-  constructor(edge = False) {
+  constructor(id, edge = False) {
+    this.id = id;
     this.edge = edge;
     this.FPort = this.edge == true ? 4 : 2;
   }

@@ -154,5 +154,6 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
-experiment_files/*.json
+experiment_files/
+!experiment_files/.placeholder
 test1.js

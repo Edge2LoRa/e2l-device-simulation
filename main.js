@@ -13,13 +13,12 @@ const main = async () => {
   const ratio = experimentInfo.ratio;
   const deviceNumber = experimentInfo.deviceNumber;
   const deviceListFile = experimentInfo.deviceList;
+  const gatewayListFile = experimentInfo.gatewayList;
   const snapshotFolder = experimentInfo.snapshotFolder;
   // Read the JSON file containing device information
   const deviceList = JSON.parse(fs.readFileSync(deviceListFile));
   // Read the JSON file containing gateway information
-  const gatewayList = JSON.parse(
-    fs.readFileSync("experiment_files/gateways.json")
-  );
+  const gatewayList = JSON.parse(fs.readFileSync(gatewayListFile));
 
   // Init and run experiment
   const experiment = new Experiment2(

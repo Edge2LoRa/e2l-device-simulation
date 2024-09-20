@@ -2,6 +2,7 @@ const csv = require("@fast-csv/parse");
 const fs = require("fs");
 const path = require("path");
 const Device = require("../device");
+const PacketForwarder = require("../packet-forwarder");
 
 const Experiment2 = class {
   constructor(
@@ -15,24 +16,34 @@ const Experiment2 = class {
     this.legacyEdgeRatio = legacyEdgeRatio;
     this.packetDataFolder = packetDataFolder;
 
-    this.devices = {};
-
-    // CREATE GATEWAYS
-    this.gatewayList = gatewayList;
-    // TODO
+    // CREATE PACKET FORWARDERS
+    this.packetForwarders = {};
+    for (const gatewayData of gatewayList) {
+      const gateway_id = gatewayData.id;
+      console.log(gateway_id);
+      const packetForwarder = new PacketForwarder(
+        gateway_id,
+        gatewayData.host,
+        gatewayData.port
+      );
+      this.packetForwarders[gateway_id] = packetForwarder;
+    }
 
     // CREATE DEVICES
+    this.devices = {};
     let deviceNumberCounter = 0;
     for (const deviceData of deviceList) {
-      if (deviceNumberCounter >= deviceNumber) break;
+      if (deviceNumber > 0 && deviceNumberCounter >= deviceNumber) break;
+      const device_id = deviceData.ids.device_id;
       const device = new Device(
+        device_id,
         deviceNumberCounter % (legacyEdgeRatio + 1) !== 0
       );
       const DevAddr = deviceData.session.dev_addr;
       const AppSKey = deviceData.session.keys.app_s_key.key;
       const NwkSKey = deviceData.session.keys.f_nwk_s_int_key.key;
       device.abpActivation(DevAddr, NwkSKey, AppSKey);
-      this.devices[DevAddr] = device;
+      this.devices[device_id] = device;
       // console.debug(
       //   `Device ${DevAddr}: ${device.isEdge() ? "EDGE" : "LEGACY"}`
       // );
@@ -66,8 +77,8 @@ const Experiment2 = class {
           positionArray[2] = position.z;
           // ENCODE BASE64
           const payload = Buffer.from(positionArray.buffer).toString("base64");
-          const spreadingFactor = parseInt(row.spreading_factor);
           const spreadingFactorStr = row.spreading_factor;
+          const spreadingFactor = parseInt(spreadingFactorStr);
           // GET GATEWAYS
           let receptions = [];
           try {
@@ -83,18 +94,28 @@ const Experiment2 = class {
           // console.log(receptions);
 
           // Create LoRa packet
-          const device = this.devices[devAddr];
+          const device = this.devices[nodeId];
           if (!device) {
-            console.warn(`Device ${devAddr} not found.`);
+            console.warn(`Device ${nodeId} not found.`);
             return;
           }
           const packet = device.createLoRaPacket(payload, fCnt);
-          console.log(packet);
 
           // SEND PACKET
           for (const gwInfo of receptions) {
             // TODO
-            console.log(gwInfo);
+            const gw_id = gwInfo[7];
+            const packetForwarder = this.packetForwarders[gw_id];
+            const encodedPacket = packetForwarder.encodePacket(packet);
+            const frameLoss = 0;
+            packetForwarder
+              .sendPacket(encodedPacket, frameLoss)
+              .then(() => {
+                console.log(`Packet sent to ${gw_id}.`);
+              })
+              .catch((error) => {
+                console.error(error);
+              });
           }
         })
         .on("error", (error) => {
@@ -121,6 +142,8 @@ const Experiment2 = class {
       } catch (error) {
         console.error(error);
       }
+      // SLEEP FOR 1 SECOND
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
     console.log("Experiment completed.");
   };
