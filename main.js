@@ -1,34 +1,25 @@
-const { Experiment2 } = require("./e2l_device_emulator");
+const { Experiment3 } = require("./e2l_device_emulator");
 const fs = require("fs");
 
-console.log("Running experiment 1");
+console.log("Running experiment 3");
 
 const main = async () => {
   // Read the JSON file containing experiment information
   const experimentData = JSON.parse(
-    fs.readFileSync("experiment_files/experiment.json")
+    fs.readFileSync("./experiment_files/experiment03.json")
   );
   // Read the JSON file containing experiment information
-  const experimentInfo = experimentData.experiment[0]; // Assuming there's only one experiment in the array
-  const ratio = experimentInfo.ratio;
-  const deviceNumber = experimentInfo.deviceNumber;
-  const deviceListFile = experimentInfo.deviceList;
-  const gatewayListFile = experimentInfo.gatewayList;
-  const snapshotFolder = experimentInfo.snapshotFolder;
-  // Read the JSON file containing device information
-  const deviceList = JSON.parse(fs.readFileSync(deviceListFile));
-  // Read the JSON file containing gateway information
-  const gatewayList = JSON.parse(fs.readFileSync(gatewayListFile));
-
+  //const experimentInfo = experimentData.experiment[0]; // Assuming there's only one experiment in the array
+  const snapshotFolder = experimentData.snapshotFolder;
+  const snapshots = experimentData.snapshots;
+  const gatewayFolder =  experimentData.gateways;
   // Init and run experiment
-  const experiment = new Experiment2(
-    deviceList,
-    deviceNumber,
-    ratio,
-    gatewayList,
-    snapshotFolder
+  const experiment3 = new Experiment3(
+    snapshotFolder,
+    snapshots,
+    gatewayFolder
   );
-  await experiment.run();
+  await experiment3.run();
 };
 
 main();
