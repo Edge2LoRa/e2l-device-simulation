@@ -62,9 +62,9 @@ const Device = class {
     return packetbase64;
   }
   
-  sendLoRaPacket = (packetInfo, frameLoss, gatewayInfo, forwarder_info) => {
+  sendLoRaPacket = async (packetInfo, frameLoss, gatewayInfo, forwarder_info) => {
     const metadata = packet_forwarder.encodePacket(packetInfo, frameLoss, gatewayInfo);
-    return packet_forwarder.sendPacket(metadata, 0, forwarder_info);
+    return await packet_forwarder.sendPacket(metadata, 0, forwarder_info); // optionally add await
   };
 };
 

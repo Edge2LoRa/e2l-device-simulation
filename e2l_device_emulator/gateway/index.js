@@ -1,6 +1,8 @@
 const dgram = require("dgram");
 const fs = require('fs');
 const csv = require('csv-parser');
+const net = require('net');
+const client = new net.Socket();
 
 
 
@@ -63,27 +65,36 @@ class PacketForwarder {
   }
 
 
-  sendPacket = (packet, frameLoss, forwarder_info) => {
-      return new Promise((resolve, reject) => {
+  sendPacket = async (packet, frameLoss, forwarder_info) => {
+    return new Promise((resolve, reject) => {
       const socket = dgram.createSocket("udp4");
+
+      socket.on("error", (err) => {
+        console.error("Socket error:", err);
+        socket.close();
+        reject(err);
+      });
+
       socket.connect(forwarder_info.port, forwarder_info.host, (err) => {
         if (err) {
-          console.log(err);
+          console.error("Socket connection error:", err);
+          socket.close();
           return reject(err);
-        } else {
-          socket.send(packet, 0, packet.length, (err) => {
-            if (err) {
-              console.log(err);
-              return reject(err);
-            } else {
-              socket.close();
-              return resolve();
-            }
-          });
         }
+
+        socket.send(packet, 0, packet.length, (err) => {
+          if (err) {
+            console.error("Socket send error:", err);
+            socket.close();
+            return reject(err);
+          }
+
+          socket.close();
+          resolve(); // ✅ clean resolve after successful send
+        });
       });
     });
-  }
+  };
   encodePacket = (base64Packet, frameLoss, gatewayInfo) => {
     const now = new Date();
     const size = base64Packet.length;

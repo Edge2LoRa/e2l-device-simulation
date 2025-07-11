@@ -4,7 +4,6 @@ const path = require("path");
 const csv = require("csv-parser");
 const device = require('../device');
 const forwarder = require('../gateway');
-const { channel } = require("diagnostics_channel");
 
 
 const Experiment3 = class {
@@ -63,7 +62,8 @@ const Experiment3 = class {
       }
 
       let recordCounter = 0;
-      dataArray.forEach((item) => {
+
+      for (const item of dataArray) {
         recordCounter++;
         let receptions = item.receptions;
 
@@ -72,13 +72,13 @@ const Experiment3 = class {
             receptions = JSON.parse(receptions.replace(/'/g, '"'));
           } catch (e) {
             console.error("Failed to parse receptions:", receptions, e);
-            return;
+            continue; // was return, changed to continue to avoid exiting entire function
           }
         }
 
         if (!Array.isArray(receptions) || receptions.length === 0) {
           console.warn(`Invalid receptions in record ${recordCounter} of ${snapshotKey}. Skipping.`);
-          return;
+          continue;
         }
 
         if (
@@ -87,14 +87,14 @@ const Experiment3 = class {
           item.spreading_factor === undefined
         ) {
           console.warn(`Record ${recordCounter} in ${snapshotKey} missing required fields. Skipping.`);
-          return;
+          continue;
         }
 
-        receptions.forEach((entry, index) => {
+        for (const [index, entry] of receptions.entries()) {
           const gatewayInfo = {
             type: entry[0],
-            time: entry[1],
-            channel: entry[2],
+            latitude: entry[1],
+            longitude: entry[2],
             sf: entry[3],
             cr: entry[4],
             frequency: entry[5],
@@ -104,21 +104,21 @@ const Experiment3 = class {
 
           const packet = device.createLoRaPacket(item);
 
-          forwarder
-            .GwData(gatewayInfo.gateway_mac, packet, this.gatewayFiles)
-            .then((forwarderInfo) => {
-              if (forwarderInfo) {
-                console.log("Host:", forwarderInfo.host);
-                console.log("Port:", forwarderInfo.port);
-                device.sendLoRaPacket(packet, 0, gatewayInfo, forwarderInfo);
-              } else {
-                console.warn("No forwarder info found for MAC:", gatewayInfo.gateway_mac);
-              }
-            })
-            .catch((err) => {
-              console.error("Error in GwData call:", err.message);
-            });
+          try {
+            const forwarderInfo = await forwarder.GwData(gatewayInfo.gateway_mac, packet, this.gatewayFiles);
+            if (forwarderInfo) {
+              console.log("Host:", forwarderInfo.host);
+              console.log("Port:", forwarderInfo.port);
 
+              await device.sendLoRaPacket(packet, 0, gatewayInfo, forwarderInfo); // ✅ works now
+            } else {
+              console.warn("No forwarder info found for MAC:", gatewayInfo.gateway_mac);
+            }
+          } catch (err) {
+            console.error("Error in GwData or sendLoRaPacket:", err.message);
+          }
+
+          await new Promise(res => setTimeout(res, 10)); // optional throttle
           console.log(`\nReception #${index + 1}`);
           console.log(`  Type        : ${entry[0]}`);
           console.log(`  Latitude    : ${entry[1]}`);
@@ -128,14 +128,15 @@ const Experiment3 = class {
           console.log(`  Frequency   : ${entry[5]}`);
           console.log(`  RSSI        : ${entry[6]}`);
           console.log(`  Gateway MAC : ${entry[7]}`);
-        });
-      });
+        }
+      }
     }
 
     const allFrameCountersFlat = Object.values(frameCountersBySnapshot).flat();
     console.log("\n--- All Framecounters (flattened list) ---");
     console.log(allFrameCountersFlat);
   };
+
 
   run = async () => {
     await this.processAllCsvFiles();
