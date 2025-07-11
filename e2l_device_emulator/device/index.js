@@ -61,7 +61,7 @@ const Device = class {
     const packetbase64= constructedPacket.getPHYPayload().toString("base64");
     return packetbase64;
   }
-
+  
   sendLoRaPacket = (packetInfo, frameLoss, gatewayInfo, forwarder_info) => {
     const metadata = packet_forwarder.encodePacket(packetInfo, frameLoss, gatewayInfo);
     return packet_forwarder.sendPacket(metadata, 0, forwarder_info);

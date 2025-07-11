@@ -5,21 +5,15 @@ const csv = require('csv-parser');
 
 
 class PacketForwarder {
-  constructor(id, host, port) {
+  constructor(id) {
     this.id = id;
     this.gatewayList=[]
-    this.host = 'localhost';
-    this.port = 9000;
-    this.socket = dgram.createSocket("udp4");
-    this.socket.connect(this.port, this.host, (err) => {
-
-    });
   }
   
   async readGwForwards(gw_folder) {
     return new Promise((resolve, reject) => {
       const gw_forwards = [];
-      fs.createReadStream('./e2l_device_emulator/experiments/roma-2-gw/gw-conf/gw-roma-2_ns3.csv')
+      fs.createReadStream(gw_folder)
         .pipe(csv({ separator: ';' }))
         .on('data', (row) => {
           // Push the desired data instead of overwriting
@@ -53,11 +47,11 @@ class PacketForwarder {
 
         if (mac_address === gateway_id) {
           const packetForwarder = new PacketForwarder(gateway_id, host, port);
+          this.host = host;
+          this.port = port;
           this.packetForwarders[gateway_id] = packetForwarder;
 
           found = true;
-
-          // You can return here or keep processing
           return { gateway_id, host, port };
         }
       }
@@ -88,35 +82,30 @@ class PacketForwarder {
           });
         }
       });
-      this.socket.send(packet, 0, packet.length, (err) => {
-            if (err) {
-              console.log(err);
-              return reject(err);
-            } else {
-              return resolve();
-            }
-          });
     });
-    }
+  }
   encodePacket = (base64Packet, frameLoss, gatewayInfo) => {
     const now = new Date();
     const size = base64Packet.length;
 
-    // TODO: GET FROM DATASET
-    const gtw_channel = gatewayInfo.frequency;
+    // TODO: GET SNR 
+    const gtw_time = gatewayInfo.time;
+    const gtw_channel = gatewayInfo.channel;
+    const gtw_sf = gatewayInfo.sf;
+    const coding_rate = gatewayInfo.cr;
+    const gtw_freq = gatewayInfo.frequency;
     const gtw_rssi = gatewayInfo.rssi;
     const gtw_snr = 9.2;
     const data_rate = "SF7BW125";
-    const coding_rate = gatewayInfo.cr;
 
     let jsonUDP = {
       rxpk: [
         {
-          time: now.toISOString(),
-          tmst: parseInt(now.getTime() / 1000),
+          time: gtw_time,
+          tmst: parseInt(gtw_time / 1000),
           chan: Number(gtw_channel),
           rfch: 0,
-          freq: 868.1,
+          freq: gtw_channel,
           stat: 1,
           modu: "LORA",
           datr: data_rate,

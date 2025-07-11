@@ -4,6 +4,7 @@ const path = require("path");
 const csv = require("csv-parser");
 const device = require('../device');
 const forwarder = require('../gateway');
+const { channel } = require("diagnostics_channel");
 
 
 const Experiment3 = class {
@@ -92,8 +93,8 @@ const Experiment3 = class {
         receptions.forEach((entry, index) => {
           const gatewayInfo = {
             type: entry[0],
-            latitude: entry[1],
-            longitude: entry[2],
+            time: entry[1],
+            channel: entry[2],
             sf: entry[3],
             cr: entry[4],
             frequency: entry[5],
