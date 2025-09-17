@@ -8,13 +8,14 @@ class PacketForwarder {
 
   sendPacket = (packet, frameLoss) => {
     return new Promise((resolve, reject) => {
+      console.log("Sending packet to ", this.host, this.port);
       const socket = dgram.createSocket("udp4");
       socket.connect(this.port, this.host, (err) => {
         if (err) {
           console.log(err);
           return reject(err);
         } else {
-          socket.send(packet, 0, packet.length, (err) => {
+          socket.send(packet, (err) => {
             if (err) {
               console.log(err);
               return reject(err);

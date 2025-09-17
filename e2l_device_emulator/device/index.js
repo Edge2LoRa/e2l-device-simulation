@@ -4,6 +4,7 @@ const Device = class {
   constructor(id, edge = False) {
     this.id = id;
     this.edge = edge;
+    console.log(`Device ${id} is ${this.edge ? "EDGE" : "LEGACY"}`);
     this.FPort = this.edge == true ? 4 : 2;
   }
 
