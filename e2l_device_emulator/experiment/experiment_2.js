@@ -119,9 +119,8 @@ const Experiment2 = class {
             };
             const packetForwarder = this.packetForwarders[gw_id];
             const encodedPacket = packetForwarder.encodePacket(packet, options);
-            const frameLoss = 0;
             packetForwarder
-              .sendPacket(encodedPacket, frameLoss)
+              .sendPacket(encodedPacket)
               .then(() => {
                 console.log(`Packet sent to ${gw_id}.`);
               })

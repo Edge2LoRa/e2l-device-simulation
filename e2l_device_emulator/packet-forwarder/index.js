@@ -1,31 +1,32 @@
 const dgram = require("dgram");
+const { connect } = require("net");
 class PacketForwarder {
   constructor(id, host, port) {
     this.id = id;
     this.host = host;
     this.port = port;
-  }
-
-  sendPacket = (packet, frameLoss) => {
-    return new Promise((resolve, reject) => {
-      console.log("Sending packet to ", this.host, this.port);
-      const socket = dgram.createSocket("udp4");
-      socket.connect(this.port, this.host, (err) => {
+    this.socket = dgram.createSocket("udp4");
+    this.socket.connect(this.port, this.host, (err) => {
         if (err) {
           console.log(err);
-          return reject(err);
         } else {
-          socket.send(packet, (err) => {
+          console.log(`${this.port} Connected`)
+        }  
+        });
+  }
+
+  sendPacket = (packet) => {
+    return new Promise((resolve, reject) => {
+      console.log("Sending packet to ", this.host, this.port);
+      this.socket.send(packet, 0 , packet.length, (err) => {
             if (err) {
               console.log(err);
               return reject(err);
             } else {
-              socket.close();
               return resolve();
             }
           });
-        }
-      });
+      
     });
   };
 

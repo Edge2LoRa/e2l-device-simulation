@@ -28,6 +28,7 @@ const main = async () => {
     gatewayList,
     snapshotFolder
   );
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   await experiment.run();
 };
 
