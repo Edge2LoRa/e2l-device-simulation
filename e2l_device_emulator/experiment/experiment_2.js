@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const Device = require("../device");
 const PacketForwarder = require("../packet-forwarder");
+const { estimateLoraSnr } = require("./utils");
 
 const Experiment2 = class {
   constructor(
@@ -105,8 +106,19 @@ const Experiment2 = class {
           for (const gwInfo of receptions) {
             // TODO
             const gw_id = gwInfo[7];
+            const options = {
+              rssi: parseFloat(gwInfo[6]),
+              spreadingFactor: spreadingFactor,
+              frequency: parseFloat(gwInfo[5]),
+              stat: parseInt(gwInfo[4]),
+              snr: estimateLoraSnr({
+                rssi: parseFloat(gwInfo[6]),
+                spreadingFactor: spreadingFactor,
+                bandwidth: 125000,
+              }).estimatedSnr,
+            };
             const packetForwarder = this.packetForwarders[gw_id];
-            const encodedPacket = packetForwarder.encodePacket(packet);
+            const encodedPacket = packetForwarder.encodePacket(packet, options);
             const frameLoss = 0;
             packetForwarder
               .sendPacket(encodedPacket, frameLoss)

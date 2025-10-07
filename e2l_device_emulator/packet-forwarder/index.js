@@ -29,31 +29,28 @@ class PacketForwarder {
     });
   };
 
-  encodePacket = (base64Packet) => {
+  encodePacket = (base64Packet, options = {}) => {
     const now = new Date();
     const size = base64Packet.length;
 
-    // TODO: GET FROM DATASET
-    const gtw_channel = 7;
-    const gtw_rssi = -33;
-    const gtw_snr = 9.2;
-    const data_rate = "SF7BW125";
-    const coding_rate = "4/5";
+    const dataRate = options.spreadingFactor
+      ? `SF${options.spreadingFactor}BW125`
+      : "SF7BW125";
 
     let jsonUDP = {
       rxpk: [
         {
           time: now.toISOString(),
           tmst: parseInt(now.getTime() / 1000),
-          chan: Number(gtw_channel),
+          chan: Number(options.channel || 7),
           rfch: 0,
-          freq: 868.1,
-          stat: 1,
+          freq: options.frequency || 868.1,
+          stat: options.stat || 1,
           modu: "LORA",
-          datr: data_rate,
-          codr: coding_rate,
-          lsnr: Number(gtw_snr),
-          rssi: Number(gtw_rssi),
+          datr: dataRate,
+          codr: options.codingRate || "4/5",
+          lsnr: Number(options.snr || 9.2),
+          rssi: Number(options.rssi || -33),
           size: size,
           data: base64Packet,
         },
