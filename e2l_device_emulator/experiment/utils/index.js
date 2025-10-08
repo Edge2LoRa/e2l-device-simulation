@@ -9,7 +9,7 @@
  * @param {number} [params.bandwidth=125000] - The channel bandwidth in Hz. Defaults to 125 kHz, the most common LoRaWAN standard.
  * @returns {object} An object containing the estimated SNR, noise floor, and a viability analysis.
  */
-function estimateLoraSnr({ rssi, spreadingFactor, bandwidth = 125000 }) {
+exports.estimateLoraSnr=function estimateLoraSnr({ rssi, spreadingFactor, bandwidth = 125000 }) {
   // --- Constants ---
   // Thermal noise power spectral density at room temperature in dBm/Hz.
   const THERMAL_NOISE_DENSITY = -174;
@@ -71,4 +71,4 @@ function estimateLoraSnr({ rssi, spreadingFactor, bandwidth = 125000 }) {
   };
 }
 
-export { estimateLoraSnr };
+
