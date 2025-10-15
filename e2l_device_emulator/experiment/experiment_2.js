@@ -115,7 +115,7 @@ const Experiment2 = class {
                 rssi: parseInt(gwInfo[6]),
                 spreadingFactor: spreadingFactor,
                 bandwidth: 125000,
-              }),
+              })["estimatedSnr"],
             };
             const packetForwarder = this.packetForwarders[gw_id];
             const encodedPacket = packetForwarder.encodePacket(packet, options);
