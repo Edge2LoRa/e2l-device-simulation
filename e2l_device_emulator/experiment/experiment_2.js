@@ -4,6 +4,7 @@ const path = require("path");
 const Device = require("../device");
 const PacketForwarder = require("../packet-forwarder");
 const snr = require("./utils");
+const { rejects } = require("assert");
 
 const Experiment2 = class {
   constructor(
@@ -85,8 +86,8 @@ const Experiment2 = class {
           try {
             receptions = JSON.parse(row.receptions.replace(/'/g, '"'));
           } catch (error) {
-            console.error(error);
-            console.error(row.receptions);
+            // console.error(error);
+            // console.error(row.receptions);
             return reject(row.receptions);
           }
           if (receptions.length < 1) {
