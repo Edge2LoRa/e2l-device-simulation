@@ -1,3 +1,4 @@
+const { generateKeyPairSync } = require('crypto');
 const lora_packet = require("lora-packet");
 
 const Device = class {
@@ -10,13 +11,25 @@ const Device = class {
   isEdge() {
     return this.edge;
   }
+  generateCompressedPublicKey() {
+    // use ECDH to get compressed key directly
+    const ecdh = crypto.createECDH("prime256v1");
+    ecdh.generateKeys();
+
+    return {
+      compressedPublicKey: ecdh.getPublicKey(null, "compressed"), // 33 bytes
+      privateKey: ecdh.getPrivateKey(), // keep secret
+    };
+  };
 
   abpActivation = (DevAddr, NwkSKey, AppSKey) => {
     this.DevAddr = DevAddr;
     this.NwkSKey = NwkSKey;
     this.AppSKey = AppSKey;
   };
-
+  /***************************************************************************************
+   * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | payload | AppSKey | NwkSKey |
+  */
   createLoRaPacket = (payload, FCnt) => {
     const constructedPacket = lora_packet.fromFields(
       {
@@ -36,6 +49,29 @@ const Device = class {
       Buffer.from(this.NwkSKey, "hex")
     );
     return constructedPacket.getPHYPayload().toString("base64");
+  };
+  /***************************************************************************************
+   * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
+  */
+  createEdgeJoinRequest = (compressedPubKey, FCnt) => {
+    const packet = lora_packet.fromFields(
+      {
+        MType: "Unconfirmed Data Up",
+        DevAddr: Buffer.from(this.DevAddr, "hex"),
+        FCtrl: {
+          ADR: false,
+          ACK: false,
+          ADRACKReq: false,
+          FPending: false,
+        },
+        FCnt: FCnt,
+        FPort: 4, // Application port for edge key exchange
+        payload: compressedPubKey, // 33 bytes
+      },
+      Buffer.from(this.AppSKey, "hex"),
+      Buffer.from(this.NwkSKey, "hex")
+    );
+    return packet.getPHYPayload().toString("base64");
   };
 
   sendLoRaPacket = (packetInfo, frameLoss, packetForwarder) => {

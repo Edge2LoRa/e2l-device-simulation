@@ -1,3 +1,4 @@
+const { createECDH } = require('crypto');
 const csv = require("@fast-csv/parse");
 const fs = require("fs");
 const path = require("path");
@@ -5,6 +6,7 @@ const Device = require("../device");
 const PacketForwarder = require("../packet-forwarder");
 const snr = require("./utils");
 const { rejects } = require("assert");
+const { type } = require('os');
 
 const Experiment2 = class {
   constructor(
@@ -17,6 +19,8 @@ const Experiment2 = class {
     deviceNumber;
     this.legacyEdgeRatio = legacyEdgeRatio;
     this.packetDataFolder = packetDataFolder;
+
+  
 
     // CREATE PACKET FORWARDERS
     this.packetForwarders = {};
@@ -52,7 +56,15 @@ const Experiment2 = class {
       deviceNumberCounter++;
     }
   }
+  generateCompressedPublicKey() {
+       const ecdh = createECDH("prime256v1");
+      ecdh.generateKeys();
 
+      return {
+        publicKeyCompressed: ecdh.getPublicKey(null, "compressed"), // 33 bytes
+        privateKey: ecdh.getPrivateKey(),
+      };
+  };
   processSnapshotFile = async (snapshotFile) => {
     // READ CSV FILE
     return new Promise((resolve, reject) => {
@@ -101,7 +113,12 @@ const Experiment2 = class {
             console.warn(`Device ${nodeId} not found.`);
             return;
           }
-          const packet = device.createLoRaPacket(payload, fCnt);
+          if(this.legacyEdgeRatio == -1){
+             const { publicKeyCompressed } = this.generateCompressedPublicKey();
+             const packet = device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
+          }else{
+             const packet = device.createLoRaPacket(payload, fCnt);
+          }
 
           // SEND PACKET
           for (const gwInfo of receptions) {
