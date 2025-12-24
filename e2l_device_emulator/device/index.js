@@ -11,16 +11,6 @@ const Device = class {
   isEdge() {
     return this.edge;
   }
-  generateCompressedPublicKey() {
-    // use ECDH to get compressed key directly
-    const ecdh = crypto.createECDH("prime256v1");
-    ecdh.generateKeys();
-
-    return {
-      compressedPublicKey: ecdh.getPublicKey(null, "compressed"), // 33 bytes
-      privateKey: ecdh.getPrivateKey(), // keep secret
-    };
-  };
   generateRootKey() {
     return crypto.randomBytes(16).toString("hex");
   }
