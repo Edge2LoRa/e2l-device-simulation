@@ -21,11 +21,63 @@ const Device = class {
       privateKey: ecdh.getPrivateKey(), // keep secret
     };
   };
+  generateRootKey() {
+    return crypto.randomBytes(16).toString("hex");
+  }
 
   abpActivation = (DevAddr, NwkSKey, AppSKey) => {
     this.DevAddr = DevAddr;
     this.NwkSKey = NwkSKey;
     this.AppSKey = AppSKey;
+  };
+/*Create Over The Air Activation(OTAA)
++---------------------------------------------------------------+--+
+|                          PHYPayload                              | 
++-----------+----------------+----------------+---------+-------+--+
+|   MHDR    |   JoinEUI      |    DevEUI      | DevNonce|  MIC     |
+|  (1 byte) |   (8 bytes)    |   (8 bytes)    |(2 bytes)|(4 bytes) |
++-----------+----------------+----------------+---------+-------+--+
+*/
+  createJoinRequest = (DevEUI) =>{
+     this.JoinEUI = "0000000000000000";
+     this.AppKey = generateRootKey();
+     this.NwKey = generateRootKey();
+     const devNonce = crypto.randomBytes(2);
+
+     const joinPacket = lora_packet.fromFields(
+      {
+        MType: "Join-request",
+        JoinEUI: Buffer.from(JoinEUI, "hex"),
+        DevEUI: Buffer.from(DevEUI, "hex"),
+        DevNonce: devNonce,
+      },
+      Buffer.from(AppKey, "hex"),
+      
+    );
+    return joinPacket.getPHYPayload().toString("base64");
+  };
+    /***************************************************************************************
+   * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
+  */
+  createEdgeJoinRequest = (compressedPubKey, FCnt) => {
+    const packet = lora_packet.fromFields(
+      {
+        MType: "Unconfirmed Data Up",
+        DevAddr: Buffer.from(this.DevAddr, "hex"),
+        FCtrl: {
+          ADR: false,
+          ACK: false,
+          ADRACKReq: false,
+          FPending: false,
+        },
+        FCnt: FCnt,
+        FPort: 4, // Application port for edge key exchange
+        payload: compressedPubKey, // 33 bytes
+      },
+      Buffer.from(this.AppSKey, "hex"),
+      Buffer.from(this.NwkSKey, "hex")
+    );
+    return packet.getPHYPayload().toString("base64");
   };
   /***************************************************************************************
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | payload | AppSKey | NwkSKey |
@@ -50,29 +102,7 @@ const Device = class {
     );
     return constructedPacket.getPHYPayload().toString("base64");
   };
-  /***************************************************************************************
-   * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
-  */
-  createEdgeJoinRequest = (compressedPubKey, FCnt) => {
-    const packet = lora_packet.fromFields(
-      {
-        MType: "Unconfirmed Data Up",
-        DevAddr: Buffer.from(this.DevAddr, "hex"),
-        FCtrl: {
-          ADR: false,
-          ACK: false,
-          ADRACKReq: false,
-          FPending: false,
-        },
-        FCnt: FCnt,
-        FPort: 4, // Application port for edge key exchange
-        payload: compressedPubKey, // 33 bytes
-      },
-      Buffer.from(this.AppSKey, "hex"),
-      Buffer.from(this.NwkSKey, "hex")
-    );
-    return packet.getPHYPayload().toString("base64");
-  };
+
 
   sendLoRaPacket = (packetInfo, frameLoss, packetForwarder) => {
     return packetForwarder.send(

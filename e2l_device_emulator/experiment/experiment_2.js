@@ -57,7 +57,7 @@ const Experiment2 = class {
     }
   }
   generateCompressedPublicKey() {
-       const ecdh = createECDH("prime256v1");
+      const ecdh = createECDH("prime256v1");
       ecdh.generateKeys();
 
       return {
@@ -113,14 +113,15 @@ const Experiment2 = class {
             console.warn(`Device ${nodeId} not found.`);
             return;
           }
-          if(this.legacyEdgeRatio == -1){
-             const { publicKeyCompressed } = this.generateCompressedPublicKey();
-             const packet = device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
-          }else{
-             const packet = device.createLoRaPacket(payload, fCnt);
+          //Start to set a value for the packet
+          if (this.legacyEdgeRatio === -1) {
+            const { publicKeyCompressed } = this.generateCompressedPublicKey();
+            return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
           }
 
-          // SEND PACKET
+          return device.createLoRaPacket(payload, fCnt);
+          //End setting 
+          //SEND PACKET
           for (const gwInfo of receptions) {
             // TODO
             const gw_id = gwInfo[7];
