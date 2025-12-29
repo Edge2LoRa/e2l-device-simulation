@@ -12,9 +12,6 @@ const Device = class {
   isEdge() {
     return this.edge;
   }
-  generateRootKey() {
-    return crypto.randomBytes(16).toString("hex");
-  }
   generateCompressedPublicKey() {
         const ecdh = createECDH("prime256v1");
         ecdh.generateKeys();
@@ -38,9 +35,8 @@ const Device = class {
 |  (1 byte) |   (8 bytes)    |   (8 bytes)    |(2 bytes)|(4 bytes) |
 +-----------+----------------+----------------+---------+-------+--+
 */
-  createJoinRequest = (DevEUI) =>{
+  createJoinRequest = (DevEUI,AppKey) =>{
      const AppEUI = "0000000000000000";
-     const AppKey = this.generateRootKey();
      const devNonce = crypto.randomBytes(2);
 
      const joinPacket = lora_packet.fromFields(

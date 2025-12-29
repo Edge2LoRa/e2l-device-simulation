@@ -44,6 +44,7 @@ const Experiment2 = class {
         device_id,
         deviceNumberCounter % (legacyEdgeRatio + 1) !== 0
       );
+      const AppKey  = deviceData.root_keys.app_key.key;
       const DevAddr = deviceData.session.dev_addr;
       const AppSKey = deviceData.session.keys.app_s_key.key;
       const NwkSKey = deviceData.session.keys.f_nwk_s_int_key.key;
@@ -51,7 +52,7 @@ const Experiment2 = class {
       this.devices[device_id] = device;
       //TO DO
       if (dev_eui !='undefined' && dev_eui!==null){
-          device.createJoinRequest(dev_eui);
+          device.createJoinRequest(dev_eui,AppKey);
       }
       deviceNumberCounter++;
     }
