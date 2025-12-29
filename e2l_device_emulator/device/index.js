@@ -1,4 +1,4 @@
-const { generateKeyPairSync } = require('crypto');
+const crypto = require("crypto");
 const lora_packet = require("lora-packet");
 
 const Device = class {
@@ -20,28 +20,27 @@ const Device = class {
     this.NwkSKey = NwkSKey;
     this.AppSKey = AppSKey;
   };
-/*Create Over The Air Activation(OTAA)
+/*Create Over The Air Activation(OTAA) LoRaWAN 1.0.x
 +---------------------------------------------------------------+--+
 |                          PHYPayload                              | 
 +-----------+----------------+----------------+---------+-------+--+
-|   MHDR    |   JoinEUI      |    DevEUI      | DevNonce|  MIC     |
+|   MHDR    |   AppEUI       |    DevEUI      | DevNonce|  MIC     |
 |  (1 byte) |   (8 bytes)    |   (8 bytes)    |(2 bytes)|(4 bytes) |
 +-----------+----------------+----------------+---------+-------+--+
 */
   createJoinRequest = (DevEUI) =>{
-     this.JoinEUI = "0000000000000000";
-     this.AppKey = generateRootKey();
-     this.NwKey = generateRootKey();
+     const AppEUI = "0000000000000000";
+     const AppKey = this.generateRootKey();
      const devNonce = crypto.randomBytes(2);
 
      const joinPacket = lora_packet.fromFields(
       {
-        MType: "Join-request",
-        JoinEUI: Buffer.from(JoinEUI, "hex"),
+        MType: "Join Request",
+        AppEUI: Buffer.from(AppEUI, "hex"),
         DevEUI: Buffer.from(DevEUI, "hex"),
         DevNonce: devNonce,
       },
-      Buffer.from(AppKey, "hex"),
+      AppKey
       
     );
     return joinPacket.getPHYPayload().toString("base64");

@@ -41,6 +41,7 @@ const Experiment2 = class {
     for (const deviceData of deviceList) {
       if (deviceNumber > 0 && deviceNumberCounter >= deviceNumber) break;
       const device_id = deviceData.ids.device_id;
+      const dev_eui = deviceData.ids.dev_eui;
       const device = new Device(
         device_id,
         deviceNumberCounter % (legacyEdgeRatio + 1) !== 0
@@ -50,9 +51,10 @@ const Experiment2 = class {
       const NwkSKey = deviceData.session.keys.f_nwk_s_int_key.key;
       device.abpActivation(DevAddr, NwkSKey, AppSKey);
       this.devices[device_id] = device;
-      // console.debug(
-      //   `Device ${DevAddr}: ${device.isEdge() ? "EDGE" : "LEGACY"}`
-      // );
+      //TO DO
+      if (dev_eui !='undefined' && dev_eui!==null){
+          device.createJoinRequest(dev_eui);
+      }
       deviceNumberCounter++;
     }
   }
