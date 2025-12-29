@@ -1,3 +1,4 @@
+const { createECDH } = require('crypto');
 const crypto = require("crypto");
 const lora_packet = require("lora-packet");
 
@@ -14,6 +15,15 @@ const Device = class {
   generateRootKey() {
     return crypto.randomBytes(16).toString("hex");
   }
+  generateCompressedPublicKey() {
+        const ecdh = createECDH("prime256v1");
+        ecdh.generateKeys();
+  
+        return {
+          publicKeyCompressed: ecdh.getPublicKey(null, "compressed"), // 33 bytes
+          privateKey: ecdh.getPrivateKey(),
+        };
+  };
 
   abpActivation = (DevAddr, NwkSKey, AppSKey) => {
     this.DevAddr = DevAddr;
@@ -45,7 +55,7 @@ const Device = class {
     );
     return joinPacket.getPHYPayload().toString("base64");
   };
-    /***************************************************************************************
+  /***************************************************************************************
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
   */
   createEdgeJoinRequest = (compressedPubKey, FCnt) => {

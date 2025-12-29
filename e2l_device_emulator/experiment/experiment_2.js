@@ -1,4 +1,3 @@
-const { createECDH } = require('crypto');
 const csv = require("@fast-csv/parse");
 const fs = require("fs");
 const path = require("path");
@@ -20,7 +19,6 @@ const Experiment2 = class {
     this.legacyEdgeRatio = legacyEdgeRatio;
     this.packetDataFolder = packetDataFolder;
 
-  
 
     // CREATE PACKET FORWARDERS
     this.packetForwarders = {};
@@ -58,22 +56,12 @@ const Experiment2 = class {
       deviceNumberCounter++;
     }
   }
-  generateCompressedPublicKey() {
-      const ecdh = createECDH("prime256v1");
-      ecdh.generateKeys();
-
-      return {
-        publicKeyCompressed: ecdh.getPublicKey(null, "compressed"), // 33 bytes
-        privateKey: ecdh.getPrivateKey(),
-      };
-  };
   processSnapshotFile = async (snapshotFile) => {
     // READ CSV FILE
     return new Promise((resolve, reject) => {
       fs.createReadStream(path.join(this.packetDataFolder, snapshotFile))
         .pipe(csv.parse({ headers: true }))
         .on("data", (row) => {
-          // console.log(Object.keys(row));
           const label = row.label;
           // GET DEVICE INFO
           const nodeId = row.NODE_ID;
@@ -100,15 +88,11 @@ const Experiment2 = class {
           try {
             receptions = JSON.parse(row.receptions.replace(/'/g, '"'));
           } catch (error) {
-            // console.error(error);
-            // console.error(row.receptions);
             return reject(row.receptions);
           }
           if (receptions.length < 1) {
             return;
           }
-          // console.log(receptions);
-
           // Create LoRa packet
           const device = this.devices[nodeId];
           if (!device) {
@@ -117,7 +101,7 @@ const Experiment2 = class {
           }
           //Start to set a value for the packet
           if (this.legacyEdgeRatio === -1) {
-            const { publicKeyCompressed } = this.generateCompressedPublicKey();
+            const { publicKeyCompressed } = device.generateCompressedPublicKey();
             return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
           }
 
@@ -171,8 +155,8 @@ const Experiment2 = class {
       try {
         const result = await this.processSnapshotFile(snapshotFile);
         console.log(result);
-      } catch (error) {
-        console.error(error);
+      } catch (err) {
+        console.error("Caught error: ", err);
       }
       // SLEEP FOR 1 SECOND
       await new Promise((resolve) => setTimeout(resolve, 1000));
