@@ -32,30 +32,71 @@ const Experiment2 = class {
       );
       this.packetForwarders[gateway_id] = packetForwarder;
     }
-
-    // CREATE DEVICES
     this.devices = {};
     let deviceNumberCounter = 0;
-    for (const deviceData of deviceList) {
-      if (deviceNumber > 0 && deviceNumberCounter >= deviceNumber) break;
-      const device_id = deviceData.ids.device_id;
-      const dev_eui = deviceData.ids.dev_eui;
-      const device = new Device(
-        device_id,
-        deviceNumberCounter % (legacyEdgeRatio + 1) !== 0
-      );
-      const AppKey  = deviceData.root_keys.app_key.key;
-      const DevAddr = deviceData.session.dev_addr;
-      const AppSKey = deviceData.session.keys.app_s_key.key;
-      const NwkSKey = deviceData.session.keys.f_nwk_s_int_key.key;
-      device.abpActivation(DevAddr, NwkSKey, AppSKey);
-      this.devices[device_id] = device;
-      //TO DO
-      if (dev_eui !='undefined' && dev_eui!==null){
-          device.createJoinRequest(dev_eui,AppKey);
-      }
-      deviceNumberCounter++;
+
+    const gwId = Buffer.from('FFEE001122334455', 'hex');
+    const host = '127.0.0.1';
+    const port = 1700;
+    const packetForwarder = new PacketForwarder(gwId, host, port);
+
+    async function processDevices() {
+        for (const deviceData of deviceList) {
+            // 1. Check constraints
+            if (typeof deviceNumber !== 'undefined' && deviceNumber > 0 && deviceNumberCounter >= deviceNumber) break;
+
+            const device_id = deviceData.ids.device_id;
+            const dev_eui = deviceData.ids.dev_eui;
+            const app_eui = deviceData.ids.join_eui || "0000000000000000";
+            // 2. Instantiate Device
+            const isLegacy = deviceNumberCounter % (legacyEdgeRatio + 1) !== 0;
+            const device = new Device(device_id, isLegacy);
+
+            
+
+            // 3. Handle ABP (Already activated)
+            if (deviceData.session) {
+                const DevAddr = deviceData.session.dev_addr;
+                const AppSKey = deviceData.session.keys.app_s_key.key;
+                const NwkSKey = deviceData.session.keys.f_nwk_s_int_key.key;
+                
+                device.abpActivation(DevAddr, NwkSKey, AppSKey);
+                this.devices[device_id] = device; 
+                console.log(`[ABP] Device ${device_id} initialized.`);
+            }else {
+                const AppKey = deviceData.root_keys.app_key.key;
+                const version = deviceData.lorawan_version;
+                if (version.includes("1_0")) { 
+                    // LoRaWAN 1.0.x uses AppKey for the Join Request MIC
+                    const signedBuffer = device.createJoinRequest(dev_eui, app_eui, AppKey);
+                    const udpPacket = packetForwarder.encodeUplink(signedBuffer, gwId);
+                    try {
+                        await packetForwarder.sendUplink(udpPacket);
+                        // Store the device so we can process the Join Accept later
+                        this.devices[device_id] = device; 
+                        console.log(`[OTAA] Sent Join Request for ${device_id} (v1.0.x)`);
+                    } catch (err) {
+                        console.error(`[ERR] Failed to send Join for ${device_id}:`, err);
+                    }
+                } 
+                else if (version.includes("1_1")) {
+                    // LoRaWAN 1.1 requires NwkKey for Join MIC
+                    const NwkKey = deviceData.root_keys.nwk_key ? deviceData.root_keys.nwk_key.key : AppKey;
+                    console.log(`[OTAA] Preparing 1.1 Join for ${device_id} using NwkKey.`);
+                    
+                    const signedBuffer = device.createJoinRequest(dev_eui, app_eui, NwkKey);
+                    const udpPacket = packetForwarder.encodeUplink(signedBuffer, gwId);
+                    
+                    await packetForwarder.sendUplink(udpPacket);
+                    this.devices[device_id] = device;
+                }
+            }
+
+            deviceNumberCounter++;
+        }
     }
+
+    processDevices.bind(this)(); // Ensure 'this' context is preserved if inside a class
   }
   processSnapshotFile = async (snapshotFile) => {
     // READ CSV FILE
@@ -101,11 +142,11 @@ const Experiment2 = class {
             return;
           }
           //Start to set a value for the packet
-          if (this.legacyEdgeRatio === -1) {
-            const { publicKeyCompressed } = device.generateCompressedPublicKey();
-            return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
-          }
-
+          // if (this.legacyEdgeRatio === -1) {
+          //   const { publicKeyCompressed } = device.generateCompressedPublicKey();
+          //   return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
+          // }
+          
           return device.createLoRaPacket(payload, fCnt);
           //End setting 
           //SEND PACKET

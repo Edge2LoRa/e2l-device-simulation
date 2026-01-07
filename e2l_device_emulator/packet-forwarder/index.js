@@ -1,83 +1,103 @@
 const dgram = require("dgram");
-const { connect } = require("net");
-class PacketForwarder {
+const crypto = require("crypto");
+const EventEmitter = require("events");
+
+class PacketForwarder extends EventEmitter {
   constructor(id, host, port) {
-    this.id = id;
+    super();
     this.host = host;
     this.port = port;
     this.socket = dgram.createSocket("udp4");
-    this.socket.connect(this.port, this.host, (err) => {
-        if (err) {
-          console.log(err);
-        } else {
-          console.log(`${this.port} Connected`)
-        }  
-        });
+
+
+    this.gwEui = Buffer.from(id, "hex");
+
+    this.socket.on("message", (msg) => {
+      const type = msg[3];
+
+      if (type === 0x01) {
+        console.log("[*] PUSH_ACK received");
+      } else if (type === 0x04) {
+        console.log("[*] PULL_ACK received");
+      } else if (type === 0x03) {
+        this.handleDownlink(msg);
+      }
+    });
+
+    this.pullInterval = setInterval(() => {
+      this.sendPullData();
+    }, 10000);
   }
 
-  sendPacket = (packet) => {
-    return new Promise((resolve, reject) => {
-      console.log("Sending packet to ", this.host, this.port);
-      this.socket.send(packet, 0 , packet.length, (err) => {
-            if (err) {
-              console.log(err);
-              return reject(err);
-            } else {
-              return resolve();
-            }
-          });
-      
-    });
-  };
-
-  encodePacket = (base64Packet, options = {}) => {
-    const now = new Date();
-    const size = base64Packet.length;
-
-    const dataRate = options.spreadingFactor
-      ? `SF${options.spreadingFactor}BW125`
-      : "SF7BW125";
-
-    let jsonUDP = {
-      rxpk: [
-        {
-          time: now.toISOString(),
-          tmst: parseInt(now.getTime() / 1000),
-          chan: Number(options.channel || 7),
-          rfch: 0,
-          freq: options.frequency || 868.1,
-          stat: options.stat || 1,
-          modu: "LORA",
-          datr: dataRate,
-          codr: options.codingRate || "4/5",
-          lsnr: Number(options.snr || 9.2),
-          rssi: Number(options.rssi || -33),
-          size: size,
-          data: base64Packet,
-        },
-      ],
-    };
-    const jsonPacket = JSON.stringify(jsonUDP);
-    /*headerPKTFWD[0] == PROTOCOL_VERSION == 2
-    headerPKTFWD[1] == numero random
-    headerPKTFWD[2] == numero random
-    headerPKTFWD[3] == PKT_PUSH_DATA == 0
-    headerPKTFWD[4] == net_mac_h = htonl((uint32_t)(0xFFFFFFFF & (lgwm>>32)));
-    headerPKTFWD[8] == net_mac_l = htonl((uint32_t)(0xFFFFFFFF &  lgwm  ));
-    lgwm == 0 Lora gateway MAC address
-    */
-    let headerPKTFWD = new Uint8Array([
-      2, 45, 141, 0, 184, 39, 235, 255, 254, 230, 15, 44,
+  sendPullData() {
+    const token = crypto.randomBytes(2);
+    const pullPacket = Buffer.concat([
+      Buffer.from([0x02]), 
+      token,
+      Buffer.from([0x02]), 
+      this.gwEui
     ]);
-    let enc = new TextEncoder();
-    let json = enc.encode(jsonPacket);
 
-    // Create a new array with the total length and merge all source arrays.
-    let mergedArray = new Uint8Array(headerPKTFWD.length + json.length);
-    mergedArray.set(headerPKTFWD, 0); // Copy headerPKTFWD to mergedArray at the beginning.
-    mergedArray.set(json, headerPKTFWD.length); // Copy json to mergedArray after headerPKTFWD.
-    return mergedArray;
-  };
+    this.socket.send(pullPacket, this.port, this.host);
+    console.log("[→] Sent PULL_DATA (keep-alive)");
+  }
+
+  handleDownlink(msg) {
+    try {
+      const jsonStr = msg.subarray(4).toString();
+      const data = JSON.parse(jsonStr);
+
+      if (data.txpk && data.txpk.data) {
+        const phyPayload = Buffer.from(data.txpk.data, "base64");
+        console.log("[↓] JOIN ACCEPT RECEIVED");
+        this.emit("downlink", phyPayload);
+      }
+    } catch (err) {
+      console.error("[X] Downlink parse error:", err.message);
+    }
+  }
+
+  encodeUplink(phyPayload,gwEui) {
+    const rxpk = {
+      rxpk: [{
+        tmst: Math.floor(Math.random() * 0xffffffff), // fake concentrator counter
+        chan: 0,
+        rfch: 0,
+        freq: 868.1,
+        stat: 1,
+        modu: "LORA",
+        datr: "SF7BW125",
+        codr: "4/5",
+        lsnr: 7.5,
+        rssi: -35,
+        size: phyPayload.length,
+        data: phyPayload.toString("base64")
+      }]
+    };
+
+    const token = crypto.randomBytes(2);
+
+    const header = Buffer.concat([
+      Buffer.from([0x02]), 
+      token,
+      Buffer.from([0x00]), 
+      this.gwEui
+    ]);
+
+    return Buffer.concat([header, Buffer.from(JSON.stringify(rxpk))]);
+  }
+
+  sendUplink(phyPayload) {
+    const packet = this.encodeUplink(phyPayload);
+
+    this.socket.send(packet, this.port, this.host, (err) => {
+      if (err) {
+        console.error("[!] UDP send error:", err);
+      } else {
+        console.log("[↑] Uplink sent");
+      }
+    });
+  }
 }
 
 module.exports = PacketForwarder;

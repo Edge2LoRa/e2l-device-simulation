@@ -1,6 +1,7 @@
 const { createECDH } = require('crypto');
 const crypto = require("crypto");
 const lora_packet = require("lora-packet");
+const { AesCmac } = require('aes-cmac');
 
 const Device = class {
   constructor(id, edge = False) {
@@ -22,6 +23,15 @@ const Device = class {
         };
   };
 
+  calculateJoinMIC= async (payload, appKeyHex) => {
+      const key = Buffer.from(appKeyHex, 'hex');
+      // MIC is calculated over MHDR | MACPayload
+      const cmacInput = payload.getPHYPayload().subarray(0, -4);
+      const aesCmac = new AesCmac(key);
+      const fullCmac = await aesCmac.calculate(cmacInput);
+      return Buffer.from(fullCmac).subarray(0, 4);
+  }
+
   abpActivation = (DevAddr, NwkSKey, AppSKey) => {
     this.DevAddr = DevAddr;
     this.NwkSKey = NwkSKey;
@@ -35,21 +45,27 @@ const Device = class {
 |  (1 byte) |   (8 bytes)    |   (8 bytes)    |(2 bytes)|(4 bytes) |
 +-----------+----------------+----------------+---------+-------+--+
 */
-  createJoinRequest = (DevEUI,AppKey) =>{
-     const AppEUI = "0000000000000000";
-     const devNonce = crypto.randomBytes(2);
+  createJoinRequest = async (DevEUI, AppEUI, AppKey) => {
+    const devNonce = crypto.randomBytes(2);
 
-     const joinPacket = lora_packet.fromFields(
-      {
+    // 1. Create packet without a key (will have EEEEEEEE)
+    const joinPacket = lora_packet.fromFields({
         MType: "Join Request",
-        AppEUI: Buffer.from(AppEUI, "hex"),
-        DevEUI: Buffer.from(DevEUI, "hex"),
-        DevNonce: devNonce,
-      },
-      AppKey
-      
-    );
-    return joinPacket.getPHYPayload().toString("base64");
+        AppEUI: Buffer.from(AppEUI, "hex").reverse(),
+        DevEUI: Buffer.from(DevEUI, "hex").reverse(),
+        DevNonce: devNonce.reverse(),
+    });
+
+    // 2. Sign with manual MIC logic to ensure it's not EEEEEEEE
+    const mic = await this.calculateJoinMIC(joinPacket, AppKey);
+    
+    // 3. Assemble final Buffer
+    const phyPayload = Buffer.concat([
+        joinPacket.getPHYPayload().subarray(0, -4), 
+        mic
+    ]);
+    
+    return phyPayload;
   };
   /***************************************************************************************
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
@@ -95,9 +111,9 @@ const Device = class {
       Buffer.from(this.AppSKey, "hex"),
       Buffer.from(this.NwkSKey, "hex")
     );
+    console.log(this.DevAddr);
     return constructedPacket.getPHYPayload().toString("base64");
   };
-
 
   sendLoRaPacket = (packetInfo, frameLoss, packetForwarder) => {
     return packetForwarder.send(
