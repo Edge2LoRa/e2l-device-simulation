@@ -1,16 +1,15 @@
 const dgram = require("dgram");
 const crypto = require("crypto");
-const EventEmitter = require("events");
+const EventEmitter = require('events');
+
 
 class PacketForwarder extends EventEmitter {
   constructor(id, host, port) {
     super();
+    this.gwEui = Buffer.from(id, "hex");
     this.host = host;
     this.port = port;
     this.socket = dgram.createSocket("udp4");
-
-
-    this.gwEui = Buffer.from(id, "hex");
 
     this.socket.on("message", (msg) => {
       const type = msg[3];
@@ -57,10 +56,11 @@ class PacketForwarder extends EventEmitter {
     }
   }
 
-  encodeUplink(phyPayload,gwEui) {
+  encodeUplink= async(phyPayload, gwId) => {
+    const gwBuf = Buffer.from(gwId,'hex');
     const rxpk = {
       rxpk: [{
-        tmst: Math.floor(Math.random() * 0xffffffff), // fake concentrator counter
+        tmst: Math.floor(Math.random() * 0xffffffff), 
         chan: 0,
         rfch: 0,
         freq: 868.1,
@@ -88,9 +88,7 @@ class PacketForwarder extends EventEmitter {
   }
 
   sendUplink(phyPayload) {
-    const packet = this.encodeUplink(phyPayload);
-
-    this.socket.send(packet, this.port, this.host, (err) => {
+    this.socket.send(phyPayload, this.port, this.host, (err) => {
       if (err) {
         console.error("[!] UDP send error:", err);
       } else {

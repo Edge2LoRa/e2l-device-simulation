@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const lora_packet = require("lora-packet");
 const { AesCmac } = require('aes-cmac');
 
+
 const Device = class {
   constructor(id, edge = False) {
     this.id = id;
@@ -51,8 +52,8 @@ const Device = class {
     // 1. Create packet without a key (will have EEEEEEEE)
     const joinPacket = lora_packet.fromFields({
         MType: "Join Request",
-        AppEUI: Buffer.from(AppEUI, "hex").reverse(),
-        DevEUI: Buffer.from(DevEUI, "hex").reverse(),
+        AppEUI: Buffer.from(AppEUI, "hex"),
+        DevEUI: Buffer.from(DevEUI, "hex"),
         DevNonce: devNonce.reverse(),
     });
 
@@ -64,9 +65,10 @@ const Device = class {
         joinPacket.getPHYPayload().subarray(0, -4), 
         mic
     ]);
-    
+   
     return phyPayload;
   };
+
   /***************************************************************************************
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
   */

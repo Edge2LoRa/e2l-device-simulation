@@ -24,7 +24,6 @@ const Experiment2 = class {
     this.packetForwarders = {};
     for (const gatewayData of gatewayList) {
       const gateway_id = gatewayData.id;
-      console.log(gateway_id);
       const packetForwarder = new PacketForwarder(
         gateway_id,
         gatewayData.host,
@@ -35,9 +34,10 @@ const Experiment2 = class {
     this.devices = {};
     let deviceNumberCounter = 0;
 
-    const gwId = Buffer.from('FFEE001122334455', 'hex');
-    const host = '127.0.0.1';
-    const port = 1700;
+    const thirdGateway = gatewayList[2]; // arrays are 0-indexed
+    const gwId = thirdGateway.id;
+    const host = thirdGateway.host;
+    const port = thirdGateway.port;
     const packetForwarder = new PacketForwarder(gwId, host, port);
 
     async function processDevices() {
@@ -48,13 +48,11 @@ const Experiment2 = class {
             const device_id = deviceData.ids.device_id;
             const dev_eui = deviceData.ids.dev_eui;
             const app_eui = deviceData.ids.join_eui || "0000000000000000";
-            // 2. Instantiate Device
+            
             const isLegacy = deviceNumberCounter % (legacyEdgeRatio + 1) !== 0;
             const device = new Device(device_id, isLegacy);
 
-            
-
-            // 3. Handle ABP (Already activated)
+          
             if (deviceData.session) {
                 const DevAddr = deviceData.session.dev_addr;
                 const AppSKey = deviceData.session.keys.app_s_key.key;
@@ -68,10 +66,10 @@ const Experiment2 = class {
                 const version = deviceData.lorawan_version;
                 if (version.includes("1_0")) { 
                     // LoRaWAN 1.0.x uses AppKey for the Join Request MIC
-                    const signedBuffer = device.createJoinRequest(dev_eui, app_eui, AppKey);
-                    const udpPacket = packetForwarder.encodeUplink(signedBuffer, gwId);
+                    const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, AppKey);
+                    const udpPacket = await packetForwarder.encodeUplink(signedBuffer, gwId);
                     try {
-                        await packetForwarder.sendUplink(udpPacket);
+                        packetForwarder.sendUplink(udpPacket);
                         // Store the device so we can process the Join Accept later
                         this.devices[device_id] = device; 
                         console.log(`[OTAA] Sent Join Request for ${device_id} (v1.0.x)`);
