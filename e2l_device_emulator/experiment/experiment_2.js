@@ -39,6 +39,8 @@ const Experiment2 = class {
     const host = thirdGateway.host;
     const port = thirdGateway.port;
     const packetForwarder = new PacketForwarder(gwId, host, port);
+    packetForwarder.initListeners();
+    // packetForwarder.startPulling();
 
     async function processDevices() {
         for (const deviceData of deviceList) {
@@ -82,8 +84,8 @@ const Experiment2 = class {
                     const NwkKey = deviceData.root_keys.nwk_key ? deviceData.root_keys.nwk_key.key : AppKey;
                     console.log(`[OTAA] Preparing 1.1 Join for ${device_id} using NwkKey.`);
                     
-                    const signedBuffer = device.createJoinRequest(dev_eui, app_eui, NwkKey);
-                    const udpPacket = packetForwarder.encodeUplink(signedBuffer, gwId);
+                    const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, NwkKey);
+                    const udpPacket = await packetForwarder.encodeUplink(signedBuffer, gwId);
                     
                     await packetForwarder.sendUplink(udpPacket);
                     this.devices[device_id] = device;
