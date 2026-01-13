@@ -7,6 +7,7 @@ const snr = require("./utils");
 const { rejects } = require("assert");
 const { type } = require('os');
 
+
 const Experiment2 = class {
   constructor(
     deviceList,
@@ -34,25 +35,60 @@ const Experiment2 = class {
     this.devices = {};
     let deviceNumberCounter = 0;
 
-    const thirdGateway = gatewayList[2]; // arrays are 0-indexed
+    const thirdGateway = gatewayList[2]; 
     const gwId = thirdGateway.id;
     const host = thirdGateway.host;
     const port = thirdGateway.port;
+    const pendingJoins = new Map();
     const packetForwarder = new PacketForwarder(gwId, host, port);
     packetForwarder.initListeners();
-    // packetForwarder.startPulling();
+    
 
     async function processDevices() {
+        packetForwarder.on("downlink", (msg) => {
+          const jsonStr = msg.subarray(4).toString();
+          const data = JSON.parse(jsonStr);
+
+          if (!data.txpk?.data) return;
+
+          const phyPayload = Buffer.from(data.txpk.data, "base64");
+          const mtype = (phyPayload[0] >> 5) & 0x07;
+
+          console.log(
+            "Downlink received. Pending joins:",
+            [...pendingJoins.keys()]
+          );
+          // JOIN ACCEPT
+          if (mtype === 0x01) {
+            for (const [devNonce, device] of pendingJoins.entries()) {
+             
+              if (device.tryJoinAccept(phyPayload,devNonce)) {
+                pendingJoins.delete(devNonce);
+                return;
+              }
+            }
+
+            console.warn("Join-Accept did not match any pending device");
+            return;
+          }
+
+          // NORMAL DOWNLINK
+          const devAddr = getDevAddrFromPhy(phyPayload);
+          const device = devicesByDevAddr.get(devAddr);
+          device?.handleJoinAccept(phyPayload);
+
+        });
+
         for (const deviceData of deviceList) {
             // 1. Check constraints
             if (typeof deviceNumber !== 'undefined' && deviceNumber > 0 && deviceNumberCounter >= deviceNumber) break;
-
             const device_id = deviceData.ids.device_id;
             const dev_eui = deviceData.ids.dev_eui;
             const app_eui = deviceData.ids.join_eui || "0000000000000000";
             
             const isLegacy = deviceNumberCounter % (legacyEdgeRatio + 1) !== 0;
             const device = new Device(device_id, isLegacy);
+            device.AppKey = Buffer.from(deviceData.root_keys.app_key.key, "hex");
 
           
             if (deviceData.session) {
@@ -69,7 +105,11 @@ const Experiment2 = class {
                 if (version.includes("1_0")) { 
                     // LoRaWAN 1.0.x uses AppKey for the Join Request MIC
                     const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, AppKey);
-                    const udpPacket = await packetForwarder.encodeUplink(signedBuffer, gwId);
+                    
+                    const devNonceHex = signedBuffer[1].toString("hex");
+                    pendingJoins.set(devNonceHex, device);
+                    
+                    const udpPacket = await packetForwarder.encodeUplink(signedBuffer[0], gwId);
                     try {
                         packetForwarder.sendUplink(udpPacket);
                         // Store the device so we can process the Join Accept later
@@ -78,6 +118,11 @@ const Experiment2 = class {
                     } catch (err) {
                         console.error(`[ERR] Failed to send Join for ${device_id}:`, err);
                     }
+                    //Start to set a value for the packet
+                    // if (this.legacyEdgeRatio === -1) {
+                    //   const { publicKeyCompressed } = device.generateCompressedPublicKey();
+                    //   return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
+                    // }
                 } 
                 else if (version.includes("1_1")) {
                     // LoRaWAN 1.1 requires NwkKey for Join MIC
@@ -141,11 +186,6 @@ const Experiment2 = class {
             console.warn(`Device ${nodeId} not found.`);
             return;
           }
-          //Start to set a value for the packet
-          // if (this.legacyEdgeRatio === -1) {
-          //   const { publicKeyCompressed } = device.generateCompressedPublicKey();
-          //   return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
-          // }
           
           return device.createLoRaPacket(payload, fCnt);
           //End setting 

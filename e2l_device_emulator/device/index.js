@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { createECDH } = require('crypto');
 const crypto = require("crypto");
 const lora_packet = require("lora-packet");
@@ -33,6 +35,24 @@ const Device = class {
       return Buffer.from(fullCmac).subarray(0, 4);
   }
 
+  calculateKey(AppKey, AppNonce, NetID, DevNonce, type) {
+      const block = Buffer.alloc(16, 0);
+      block[0] = type;
+
+      Buffer.from(AppNonce).reverse().copy(block, 1);
+      Buffer.from(NetID).reverse().copy(block, 4);
+      Buffer.from(DevNonce).reverse().copy(block, 7);
+
+      const cipher = crypto.createCipheriv("aes-128-ecb", AppKey, null);
+      cipher.setAutoPadding(false);
+
+      return Buffer.concat([
+        cipher.update(block),
+        cipher.final()
+      ]);
+   }
+
+
   abpActivation = (DevAddr, NwkSKey, AppSKey) => {
     this.DevAddr = DevAddr;
     this.NwkSKey = NwkSKey;
@@ -66,7 +86,7 @@ const Device = class {
         mic
     ]);
    
-    return phyPayload;
+    return [phyPayload,joinPacket.DevNonce];
   };
 
   /***************************************************************************************
@@ -122,6 +142,90 @@ const Device = class {
       (packetInfo = packetInfo),
       (frameLoss = frameLoss)
     );
+  };
+  
+  tryJoinAccept = (phyPayload, devNonce) => {
+      if (!this.AppKey) {
+        console.error("Cannot decrypt Join-Accept: AppKey missing!");
+        return false;
+      }
+
+      if (!devNonce) {
+        console.error("DevNonce missing!");
+        return false;
+      }
+
+      const packet = lora_packet.fromWire(phyPayload);
+      // Decrypt Join-Accept with AppKey
+      const decrypted = lora_packet.fromWire(
+        lora_packet.decryptJoinAccept(packet, this.AppKey)
+      );
+      console.log("[✓] Join-Accept received for", this.id);
+
+      this.handleJoinAccept(decrypted, devNonce);
+
+      return true;
+  };
+  handleJoinAccept = (packet, devNonce) => {
+    const AppNonce = packet.AppNonce;
+    const NetID = packet.NetID;
+    const DevNonce = devNonce;
+    const devNonceBuf = Buffer.isBuffer(DevNonce)
+    ? DevNonce
+    : Buffer.from(DevNonce, "hex");
+    this.DevAddr = packet.DevAddr;
+
+  //NwkSKey = aes128_encrypt(AppKey, 0x01 | AppNonce | NetID | DevNonce | pad16)
+    this.NwkSKey = this.calculateKey(
+      this.AppKey,
+      AppNonce,
+      NetID,
+      devNonceBuf,
+      0x01
+    );
+  //AppSKey = aes128_encrypt(AppKey, 0x02 | AppNonce | NetID | DevNonce | pad16)
+    this.AppSKey = this.calculateKey(
+      this.AppKey,
+      AppNonce,
+      NetID,
+      devNonceBuf,
+      0x02
+    );
+
+    this.updateDeviceSession({
+      filePath: './experiment_files/devices_no_session.json',
+      deviceId: this.id,
+      devAddr: this.DevAddr.toString("hex"),
+      nwkSKey: this.NwkSKey.toString("hex"),
+      appSKey: this.AppSKey.toString("hex")
+    });
+    console.log("Session stored for device", this.id);
+
+  };
+  updateDeviceSession = ({filePath, device_id, devAddr, nwkSKey, appSKey}) =>{
+    const absPath = path.resolve(filePath);
+
+    const raw = fs.readFileSync(absPath, "utf8");
+    const devices = JSON.parse(raw);
+    const device = devices.find(
+      d => d.ids?.device_id === device_id || d.id === device_id
+    );
+
+    if (!device) {
+      throw new Error(`Device ${device_id} not found in JSON file`);
+    }
+
+    //Update session
+    device.session = {
+      dev_addr: devAddr.toUpperCase(),
+      keys: {
+        f_nwk_s_int_key: { key: nwkSKey.toUpperCase() },
+        app_s_key: { key: appSKey.toUpperCase() }
+      }
+    };
+
+    fs.writeFileSync(absPath, JSON.stringify(devices, null, 2));
+
   };
 };
 
