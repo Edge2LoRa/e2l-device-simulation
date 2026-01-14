@@ -77,7 +77,7 @@ class PacketForwarder extends EventEmitter {
     this.socket.send(pullPacket, this.port, this.host);
     console.log("[→] Sent PULL_DATA (keep-alive)");
   }
-  encodeUplink= async(phyPayload, gwId) => {
+  encodeUplink= async(phyPayload, options=null, gwId) => {
     const gwBuf = Buffer.from(gwId,'hex');
     const rxpk = {
       rxpk: [{

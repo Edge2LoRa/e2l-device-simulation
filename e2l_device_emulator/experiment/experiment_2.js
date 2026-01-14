@@ -15,140 +15,145 @@ const Experiment2 = class {
     legacyEdgeRatio,
     gatewayList,
     packetDataFolder
-  ) {
-    deviceNumber;
+  ) 
+  {
     this.legacyEdgeRatio = legacyEdgeRatio;
     this.packetDataFolder = packetDataFolder;
+    this.deviceList = deviceList;
+    this.deviceNumber = deviceNumber;
 
+    this.devices = {};
+    this.pendingJoins = new Map();
 
     // CREATE PACKET FORWARDERS
     this.packetForwarders = {};
     for (const gatewayData of gatewayList) {
-      const gateway_id = gatewayData.id;
-      const packetForwarder = new PacketForwarder(
-        gateway_id,
+      const pf = new PacketForwarder(
+        gatewayData.id,
         gatewayData.host,
         gatewayData.port
       );
-      this.packetForwarders[gateway_id] = packetForwarder;
+      pf.initListeners();
+      this.packetForwarders[gatewayData.id] = pf;
     }
-    this.devices = {};
-    let deviceNumberCounter = 0;
 
-    const thirdGateway = gatewayList[2]; 
-    const gwId = thirdGateway.id;
-    const host = thirdGateway.host;
-    const port = thirdGateway.port;
-    const pendingJoins = new Map();
-    const packetForwarder = new PacketForwarder(gwId, host, port);
-    packetForwarder.initListeners();
+    // Choose third gateway explicitly
+    const thirdGateway = gatewayList[2];
+    this.gwId = thirdGateway.id;
+    this.packetForwarder = this.packetForwarders[this.gwId];
+  }
+ 
+  processDevices = async () => {
     
+    const packetForwarder = this.packetForwarder;
+    const pendingJoins = this.pendingJoins;
 
-    async function processDevices() {
-        packetForwarder.on("downlink", (msg) => {
-          const jsonStr = msg.subarray(4).toString();
-          const data = JSON.parse(jsonStr);
+    packetForwarder.on("downlink", (msg) => {
+      const jsonStr = msg.subarray(4).toString();
+      const data = JSON.parse(jsonStr);
 
-          if (!data.txpk?.data) return;
+      if (!data.txpk?.data) return;
 
-          const phyPayload = Buffer.from(data.txpk.data, "base64");
-          const mtype = (phyPayload[0] >> 5) & 0x07;
+      const phyPayload = Buffer.from(data.txpk.data, "base64");
+      const mtype = (phyPayload[0] >> 5) & 0x07;
 
-          console.log(
-            "Downlink received. Pending joins:",
-            [...pendingJoins.keys()]
-          );
-          // JOIN ACCEPT
-          if (mtype === 0x01) {
-            for (const [devNonce, device] of pendingJoins.entries()) {
-             
-              if (device.tryJoinAccept(phyPayload,devNonce)) {
-                pendingJoins.delete(devNonce);
-                return;
-              }
-            }
-
-            console.warn("Join-Accept did not match any pending device");
+      if (mtype === 0x01) {
+        for (const [devNonce, device] of pendingJoins.entries()) {
+          if (device.tryJoinAccept(phyPayload, devNonce)) {
+            pendingJoins.delete(devNonce);
             return;
           }
-
-          // NORMAL DOWNLINK
-          const devAddr = getDevAddrFromPhy(phyPayload);
-          const device = devicesByDevAddr.get(devAddr);
-          device?.handleJoinAccept(phyPayload);
-
-        });
-
-        for (const deviceData of deviceList) {
-            // 1. Check constraints
-            if (typeof deviceNumber !== 'undefined' && deviceNumber > 0 && deviceNumberCounter >= deviceNumber) break;
-            const device_id = deviceData.ids.device_id;
-            const dev_eui = deviceData.ids.dev_eui;
-            const app_eui = deviceData.ids.join_eui || "0000000000000000";
-            
-            const isLegacy = deviceNumberCounter % (legacyEdgeRatio + 1) !== 0;
-            const device = new Device(device_id, isLegacy);
-            device.AppKey = Buffer.from(deviceData.root_keys.app_key.key, "hex");
-
-          
-            if (deviceData.session) {
-                const DevAddr = deviceData.session.dev_addr;
-                const AppSKey = deviceData.session.keys.app_s_key.key;
-                const NwkSKey = deviceData.session.keys.f_nwk_s_int_key.key;
-                
-                device.abpActivation(DevAddr, NwkSKey, AppSKey);
-                this.devices[device_id] = device; 
-                console.log(`[ABP] Device ${device_id} initialized.`);
-            }else {
-                const AppKey = deviceData.root_keys.app_key.key;
-                const version = deviceData.lorawan_version;
-                if (version.includes("1_0")) { 
-                    // LoRaWAN 1.0.x uses AppKey for the Join Request MIC
-                    const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, AppKey);
-                    
-                    const devNonceHex = signedBuffer[1].toString("hex");
-                    pendingJoins.set(devNonceHex, device);
-                    
-                    const udpPacket = await packetForwarder.encodeUplink(signedBuffer[0], gwId);
-                    try {
-                        packetForwarder.sendUplink(udpPacket);
-                        // Store the device so we can process the Join Accept later
-                        this.devices[device_id] = device; 
-                        console.log(`[OTAA] Sent Join Request for ${device_id} (v1.0.x)`);
-                    } catch (err) {
-                        console.error(`[ERR] Failed to send Join for ${device_id}:`, err);
-                    }
-                    //Start to set a value for the packet
-                    // if (this.legacyEdgeRatio === -1) {
-                    //   const { publicKeyCompressed } = device.generateCompressedPublicKey();
-                    //   return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
-                    // }
-                } 
-                else if (version.includes("1_1")) {
-                    // LoRaWAN 1.1 requires NwkKey for Join MIC
-                    const NwkKey = deviceData.root_keys.nwk_key ? deviceData.root_keys.nwk_key.key : AppKey;
-                    console.log(`[OTAA] Preparing 1.1 Join for ${device_id} using NwkKey.`);
-                    
-                    const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, NwkKey);
-                    const udpPacket = await packetForwarder.encodeUplink(signedBuffer, gwId);
-                    
-                    await packetForwarder.sendUplink(udpPacket);
-                    this.devices[device_id] = device;
-                }
-            }
-
-            deviceNumberCounter++;
         }
-    }
+      }
+    });
 
-    processDevices.bind(this)(); // Ensure 'this' context is preserved if inside a class
-  }
+    let deviceNumberCounter = 0;
+
+    for (const deviceData of this.deviceList) {
+      if (
+        typeof this.deviceNumber !== "undefined" &&
+        this.deviceNumber > 0 &&
+        deviceNumberCounter >= this.deviceNumber
+      ) {
+        break;
+      }
+
+      const device = new Device(deviceData.ids.device_id);
+      device.AppKey = Buffer.from(
+        deviceData.root_keys.app_key.key,
+        "hex"
+      );
+      const device_id = deviceData.ids.device_id;
+
+      if (deviceData.supports_join === false) {
+        if(deviceData.session){
+          const DevAddr = deviceData.session.dev_addr;
+          const AppSKey = deviceData.session.keys.app_s_key.key;
+          const NwkSKey = deviceData.session.keys.f_nwk_s_int_key.key;
+          
+          device.abpActivation(DevAddr, NwkSKey, AppSKey);
+          this.devices[device_id] = device; 
+          console.log(`[ABP] Device ${device_id} initialized.`);
+        }else{
+          console.log(`No sesssion for [ABP] Device ${device_id}.`);
+        }
+        
+      }else{
+        if(!('session' in deviceData)){
+          const version = deviceData.lorawan_version;
+          const signedBuffer = await device.createJoinRequest(
+            deviceData.ids.dev_eui,
+            deviceData.ids.join_eui,
+            deviceData.root_keys.app_key.key
+          );
+          if (version.includes("1_0")) { 
+              // LoRaWAN 1.0.x uses AppKey for the Join Request MIC
+              // const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, AppKey);
+              
+              const devNonceHex = signedBuffer[1].toString("hex");
+              pendingJoins.set(devNonceHex, device);
+              
+              const udpPacket = await packetForwarder.encodeUplink(signedBuffer[0], this.gwId);
+              try {
+                  await packetForwarder.sendUplink(udpPacket);
+                  // Store the device so we can process the Join Accept later
+                  this.devices[device_id] = device; 
+                  console.log(`[OTAA] Sent Join Request for ${device_id} (v1.0.x)`);
+              } catch (err) {
+                  console.error(`[ERR] Failed to send Join for ${device_id}:`, err);
+              }
+              
+          }else if (version.includes("1_1")) {
+              // LoRaWAN 1.1 requires NwkKey for Join MIC
+              const NwkKey = deviceData.root_keys.nwk_key ? deviceData.root_keys.nwk_key.key : AppKey;
+              console.log(`[OTAA] Preparing 1.1 Join for ${device_id} using NwkKey.`);
+              
+              // const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, NwkKey);
+              const udpPacket = await packetForwarder.encodeUplink(signedBuffer[0], this.gwId);
+              
+              await packetForwarder.sendUplink(udpPacket);
+              this.devices[device_id] = device;
+          }
+        }else{
+           device.session = {
+            devAddr: deviceData.session.dev_addr,
+            nwkSKey: deviceData.session.keys.f_nwk_s_int_key.key,
+            appSKey: deviceData.session.keys.app_s_key.key
+          };
+         
+        }
+      }
+      this.devices[device.id] = device;
+      deviceNumberCounter++;
+    }
+  };
+
   processSnapshotFile = async (snapshotFile) => {
     // READ CSV FILE
     return new Promise((resolve, reject) => {
       fs.createReadStream(path.join(this.packetDataFolder, snapshotFile))
         .pipe(csv.parse({ headers: true }))
-        .on("data", (row) => {
+        .on("data", async (row) => {
           const label = row.label;
           // GET DEVICE INFO
           const nodeId = row.NODE_ID;
@@ -180,14 +185,21 @@ const Experiment2 = class {
           if (receptions.length < 1) {
             return;
           }
+     
+              
           // Create LoRa packet
           const device = this.devices[nodeId];
           if (!device) {
             console.warn(`Device ${nodeId} not found.`);
             return;
           }
-          
-          return device.createLoRaPacket(payload, fCnt);
+
+          //Start to set a value for the packet
+          // if (this.legacyEdgeRatio === -1) {
+          //   const { publicKeyCompressed } = device.generateCompressedPublicKey();
+          //   return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
+          // }
+          const packet = device.createLoRaPacket(payload, fCnt, device.session);
           //End setting 
           //SEND PACKET
           for (const gwInfo of receptions) {
@@ -205,15 +217,9 @@ const Experiment2 = class {
               })["estimatedSnr"],
             };
             const packetForwarder = this.packetForwarders[gw_id];
-            const encodedPacket = packetForwarder.encodePacket(packet, options);
-            packetForwarder
-              .sendPacket(encodedPacket)
-              .then(() => {
-                console.log(`Packet sent to ${gw_id}.`);
-              })
-              .catch((error) => {
-                console.error(error);
-              });
+            const udpPacket = await packetForwarder.encodeUplink(packet, options, gw_id);
+            await packetForwarder
+              .sendUplink(udpPacket);
           }
         })
         .on("error", (error) => {
@@ -223,26 +229,33 @@ const Experiment2 = class {
         .on("end", () => {
           return resolve(`Processed ${snapshotFile}.`);
         });
+        
     });
   };
 
   run = async () => {
-    // GET SNAPSHOT FILE LIST
+    console.log("Processing devices...");
+    await this.processDevices();
+    console.log("Devices processed.");
+
+
     const snapshotFiles = fs.readdirSync(this.packetDataFolder);
 
-    // PROCESS SNAPSHOT FILES
     for (const snapshotFile of snapshotFiles) {
       console.log(`Processing ${snapshotFile}...`);
-      // READ CSV FILE
       try {
-        const result = await this.processSnapshotFile(snapshotFile);
+        const result = await this.processSnapshotFile(
+          snapshotFile,
+          this.deviceList
+        );
         console.log(result);
       } catch (err) {
         console.error("Caught error: ", err);
       }
-      // SLEEP FOR 1 SECOND
+
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
+
     console.log("Experiment completed.");
   };
 };

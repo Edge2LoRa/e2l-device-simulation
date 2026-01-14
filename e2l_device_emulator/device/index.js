@@ -7,7 +7,7 @@ const { AesCmac } = require('aes-cmac');
 
 
 const Device = class {
-  constructor(id, edge = False) {
+  constructor(id, edge = false) {
     this.id = id;
     this.edge = edge;
     this.FPort = this.edge == true ? 4 : 2;
@@ -115,25 +115,24 @@ const Device = class {
   /***************************************************************************************
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | payload | AppSKey | NwkSKey |
   */
-  createLoRaPacket = (payload, FCnt) => {
+  createLoRaPacket = (payload, FCnt, session) => {
     const constructedPacket = lora_packet.fromFields(
       {
         FPort: this.FPort, //FPort = 4 Device edge / FPort = 2 Device Legacy
         MType: "Unconfirmed Data Up",
-        DevAddr: Buffer.from(this.DevAddr, "hex"),
+        DevAddr: Buffer.from(session.devAddr, "hex"),
         FCtrl: {
           ADR: false,
           ACK: false,
           ADRACKReq: false,
           FPending: false,
         },
-        FCnt: FCnt, //counter
-        payload: payload, // Replace with your payload
+        FCnt: FCnt, 
+        payload: payload, 
       },
-      Buffer.from(this.AppSKey, "hex"),
-      Buffer.from(this.NwkSKey, "hex")
+      Buffer.from(session.nwkSKey, "hex"),
+      Buffer.from(session.appSKey, "hex")
     );
-    console.log(this.DevAddr);
     return constructedPacket.getPHYPayload().toString("base64");
   };
 
@@ -193,14 +192,13 @@ const Device = class {
     );
 
     this.updateDeviceSession({
-      filePath: './experiment_files/devices_no_session.json',
+      filePath: './experiment_files/devices_preactivation/devices_no_session.json',
       deviceId: this.id,
       devAddr: this.DevAddr.toString("hex"),
       nwkSKey: this.NwkSKey.toString("hex"),
       appSKey: this.AppSKey.toString("hex")
     });
     console.log("Session stored for device", this.id);
-
   };
   updateDeviceSession = ({filePath, device_id, devAddr, nwkSKey, appSKey}) =>{
     const absPath = path.resolve(filePath);
