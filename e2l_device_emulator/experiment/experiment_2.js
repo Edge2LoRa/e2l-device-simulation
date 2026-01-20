@@ -66,7 +66,9 @@ const Experiment2 = class {
               appSKey
             );
             device.fCnt = 0;
-            device.emit("edge_join_req");
+            if(device.isEdge()){
+              device.emit("edge_join_req");
+            }
             this.pendingJoins.delete(devNonceHex);
 
             // UNBLOCK the process: This tells the await to proceed
@@ -120,7 +122,7 @@ const Experiment2 = class {
         break;
       }
 
-      const device = new Device(deviceData.ids.device_id);
+      const device = new Device(deviceData.ids.device_id, deviceNumberCounter % (this.legacyEdgeRatio + 1) !== 0);
       device.AppKey = Buffer.from(
         deviceData.root_keys.app_key.key,
         "hex"
