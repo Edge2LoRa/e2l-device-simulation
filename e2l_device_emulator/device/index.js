@@ -4,13 +4,35 @@ const { createECDH } = require('crypto');
 const crypto = require("crypto");
 const lora_packet = require("lora-packet");
 const { AesCmac } = require('aes-cmac');
+const EventEmitter = require('events');
 
 
-const Device = class {
+class Device extends EventEmitter{
   constructor(id, edge = false) {
+    super();
     this.id = id;
     this.edge = edge;
     this.FPort = this.edge == true ? 4 : 2;
+    this.fcnt = 0;
+
+    this.on("edge_join_req", () => {
+        const { publicKeyCompressed, privateKey} = this.generateCompressedPublicKey();
+
+        this.tempPrivateKey = privateKey;
+        
+        // GET the current counter
+        const currentFcnt = this.fcnt;
+
+        console.log(`[*] Creating Packet with FCnt: ${currentFcnt}`);
+
+        this.createEdgeJoinRequest(publicKeyCompressed, currentFcnt);
+
+        // INCREMENT it for next time
+        this.fcnt += 1; 
+
+        // this.sendLoRaPacket();
+        console.log(`[*] Edge join request sent. Next FCnt will be: ${this.fcnt}`);
+    });
   }
 
   isEdge() {
@@ -92,11 +114,12 @@ const Device = class {
   /***************************************************************************************
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
   */
-  createEdgeJoinRequest = (compressedPubKey, FCnt) => {
+  createEdgeJoinRequest = (generateCompressedPublicKey, FCnt) => {
+    console.log("There is a Dev address",this.session.devAddr);
     const packet = lora_packet.fromFields(
       {
         MType: "Unconfirmed Data Up",
-        DevAddr: Buffer.from(this.DevAddr, "hex"),
+        DevAddr: Buffer.from(this.session.devAddr, "hex"),
         FCtrl: {
           ADR: false,
           ACK: false,
@@ -105,7 +128,7 @@ const Device = class {
         },
         FCnt: FCnt,
         FPort: 4, // Application port for edge key exchange
-        payload: compressedPubKey, // 33 bytes
+        payload: generateCompressedPublicKey, // 33 bytes
       },
       Buffer.from(this.AppSKey, "hex"),
       Buffer.from(this.NwkSKey, "hex")
@@ -160,12 +183,12 @@ const Device = class {
         lora_packet.decryptJoinAccept(packet, this.AppKey)
       );
       console.log("[✓] Join-Accept received for", this.id);
-
+      //Receiving Downlink-step2
       this.handleJoinAccept(decrypted, devNonce);
-
       return true;
   };
   handleJoinAccept = (packet, devNonce) => {
+    console.log("handleJoinAccept!!")
     const AppNonce = packet.AppNonce;
     const NetID = packet.NetID;
     const DevNonce = devNonce;
@@ -190,40 +213,14 @@ const Device = class {
       devNonceBuf,
       0x02
     );
-
-    this.updateDeviceSession({
-      filePath: './experiment_files/devices_preactivation/devices_no_session.json',
-      deviceId: this.id,
+    
+    this.session = {
       devAddr: this.DevAddr.toString("hex"),
       nwkSKey: this.NwkSKey.toString("hex"),
       appSKey: this.AppSKey.toString("hex")
-    });
-    console.log("Session stored for device", this.id);
-  };
-  updateDeviceSession = ({filePath, device_id, devAddr, nwkSKey, appSKey}) =>{
-    const absPath = path.resolve(filePath);
-
-    const raw = fs.readFileSync(absPath, "utf8");
-    const devices = JSON.parse(raw);
-    const device = devices.find(
-      d => d.ids?.device_id === device_id || d.id === device_id
-    );
-
-    if (!device) {
-      throw new Error(`Device ${device_id} not found in JSON file`);
-    }
-
-    //Update session
-    device.session = {
-      dev_addr: devAddr.toUpperCase(),
-      keys: {
-        f_nwk_s_int_key: { key: nwkSKey.toUpperCase() },
-        app_s_key: { key: appSKey.toUpperCase() }
-      }
     };
-
-    fs.writeFileSync(absPath, JSON.stringify(devices, null, 2));
-
+   
+    
   };
 };
 

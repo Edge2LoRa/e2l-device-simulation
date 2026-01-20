@@ -6,6 +6,7 @@ const PacketForwarder = require("../packet-forwarder");
 const snr = require("./utils");
 const { rejects } = require("assert");
 const { type } = require('os');
+const { Console } = require("console");
 
 
 const Experiment2 = class {
@@ -41,34 +42,75 @@ const Experiment2 = class {
     const thirdGateway = gatewayList[2];
     this.gwId = thirdGateway.id;
     this.packetForwarder = this.packetForwarders[this.gwId];
+    
   }
- 
+  waitForJoinCompletion = async () => {
+    return new Promise((resolve, reject) => {
+      // Register the handler inside the Promise
+      this.packetForwarder.registerJoinAcceptHandler((phyPayload) => {
+        const mtype = (phyPayload[0] >> 5) & 0x07;
+        if (mtype !== 0x01) return; // Ignore non-JoinAccept packets
+
+        for (const [devNonceHex, device] of this.pendingJoins.entries()) {
+          
+          // CHECK: If this device successfully joins
+          if (device.tryJoinAccept(phyPayload, devNonceHex)) {
+            console.log(`[✓] JoinAccept matched for ${device.id}`);
+            
+            const { devAddr, nwkSKey, appSKey } = device.session;
+            
+            this.savejoindSession(
+              device.id,
+              devAddr,
+              nwkSKey,
+              appSKey
+            );
+            device.fCnt = 0;
+            device.emit("edge_join_req");
+            this.pendingJoins.delete(devNonceHex);
+
+            // UNBLOCK the process: This tells the await to proceed
+            resolve(device.id); 
+          }
+        }
+      });
+    });
+  };
+  savejoindSession(device_id, devAddr, nwkSKey, appSKey) {
+    console.log("Saving join session for", device_id);
+
+    const absPath = path.resolve(
+      './experiment_files/devices_preactivation/devices_no_session.json'
+    );
+
+    const raw = fs.readFileSync(absPath, "utf8");
+    const devices = JSON.parse(raw);
+
+    const device = devices.find(
+      d => d.ids?.device_id === device_id || d.id === device_id
+    );
+
+    if (!device) {
+      throw new Error(`Device ${device_id} not found in JSON file`);
+    }
+
+    device.session = {
+      dev_addr: devAddr.toUpperCase(),
+      keys: {
+        f_nwk_s_int_key: { key: nwkSKey.toUpperCase() },
+        app_s_key: { key: appSKey.toUpperCase() }
+      }
+    };
+
+    fs.writeFileSync(absPath, JSON.stringify(devices, null, 2));
+  }
   processDevices = async () => {
     
     const packetForwarder = this.packetForwarder;
     const pendingJoins = this.pendingJoins;
 
-    packetForwarder.on("downlink", (msg) => {
-      const jsonStr = msg.subarray(4).toString();
-      const data = JSON.parse(jsonStr);
-
-      if (!data.txpk?.data) return;
-
-      const phyPayload = Buffer.from(data.txpk.data, "base64");
-      const mtype = (phyPayload[0] >> 5) & 0x07;
-
-      if (mtype === 0x01) {
-        for (const [devNonce, device] of pendingJoins.entries()) {
-          if (device.tryJoinAccept(phyPayload, devNonce)) {
-            pendingJoins.delete(devNonce);
-            return;
-          }
-        }
-      }
-    });
 
     let deviceNumberCounter = 0;
-
     for (const deviceData of this.deviceList) {
       if (
         typeof this.deviceNumber !== "undefined" &&
@@ -83,6 +125,7 @@ const Experiment2 = class {
         deviceData.root_keys.app_key.key,
         "hex"
       );
+    
       const device_id = deviceData.ids.device_id;
 
       if (deviceData.supports_join === false) {
@@ -98,9 +141,10 @@ const Experiment2 = class {
           console.log(`No sesssion for [ABP] Device ${device_id}.`);
         }
         
-      }else{
+      }else{  
         if(!('session' in deviceData)){
           const version = deviceData.lorawan_version;
+          //Sending Packet-step1
           const signedBuffer = await device.createJoinRequest(
             deviceData.ids.dev_eui,
             deviceData.ids.join_eui,
@@ -109,12 +153,12 @@ const Experiment2 = class {
           if (version.includes("1_0")) { 
               // LoRaWAN 1.0.x uses AppKey for the Join Request MIC
               // const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, AppKey);
-              
               const devNonceHex = signedBuffer[1].toString("hex");
               pendingJoins.set(devNonceHex, device);
-              
-              const udpPacket = await packetForwarder.encodeUplink(signedBuffer[0], this.gwId);
+              //Sending Packet-step2
+              const udpPacket = await packetForwarder.encodeUplink(signedBuffer[0], null, this.gwId);
               try {
+                  //Sending Packet-step3
                   await packetForwarder.sendUplink(udpPacket);
                   // Store the device so we can process the Join Accept later
                   this.devices[device_id] = device; 
@@ -135,6 +179,7 @@ const Experiment2 = class {
               this.devices[device_id] = device;
           }
         }else{
+          console.log("handle devNonce!!");
            device.session = {
             devAddr: deviceData.session.dev_addr,
             nwkSKey: deviceData.session.keys.f_nwk_s_int_key.key,
@@ -194,11 +239,6 @@ const Experiment2 = class {
             return;
           }
 
-          //Start to set a value for the packet
-          // if (this.legacyEdgeRatio === -1) {
-          //   const { publicKeyCompressed } = device.generateCompressedPublicKey();
-          //   return device.createEdgeJoinRequest(publicKeyCompressed, fCnt);
-          // }
           const packet = device.createLoRaPacket(payload, fCnt, device.session);
           //End setting 
           //SEND PACKET
@@ -234,30 +274,50 @@ const Experiment2 = class {
   };
 
   run = async () => {
-    console.log("Processing devices...");
+  try {
+    // --- PART 1: Device Processing ---
     await this.processDevices();
     console.log("Devices processed.");
 
+    // If there IS a pending join, we wait. 
+    // If NOT, we simply skip this block and continue immediately.
+    const MAX_RETRIES = 10;
+    let attempts = 0;
 
+    while (this.pendingJoins.size > 0 && attempts < MAX_RETRIES) {
+        const joinedDeviceId = await this.waitForJoinCompletion();
+        this.pendingJoins.delete(joinedDeviceId); 
+        attempts++;
+    }
+    // --- PART 2: Snapshot Processing ---
+    // We only reach here if Part 1 didn't throw an error.
+    console.log("Now reading snapshot files...");
+    
     const snapshotFiles = fs.readdirSync(this.packetDataFolder);
 
     for (const snapshotFile of snapshotFiles) {
       console.log(`Processing ${snapshotFile}...`);
+      
+      // We use a nested try/catch here so one bad file doesn't stop the whole script
       try {
-        const result = await this.processSnapshotFile(
-          snapshotFile,
-          this.deviceList
-        );
+        const result = await this.processSnapshotFile(snapshotFile, this.deviceList);
         console.log(result);
-      } catch (err) {
-        console.error("Caught error: ", err);
+      } catch (fileErr) {
+        console.error(`Failed to process file ${snapshotFile}:`, fileErr);
       }
 
+      // Add delay between files
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
     console.log("Experiment completed.");
-  };
+
+  } catch (err) {
+    // This catches critical errors from processDevices OR waitForJoinCompletion
+    console.error("Critical error during experiment execution:", err);
+  }
+};
+
 };
 
 module.exports = Experiment2;
