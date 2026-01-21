@@ -64,6 +64,10 @@ class PacketForwarder extends EventEmitter {
     this.on("downlink", ({ phyPayload, txpk }) => {
       this.emit("raw_downlink", { phyPayload, txpk });
     });
+    this.on("edge_join_forward",async (packet, gw_id)=>{
+      const udpPacket = await this.encodeUplink(packet, null, gw_id);
+      this.sendUplink(udpPacket);
+    });
   }
   startPulling() {
     if (this.pullInterval) return;
@@ -108,7 +112,6 @@ class PacketForwarder extends EventEmitter {
         data: phyPayload.toString("base64")
       }]
     };
-
     const token = crypto.randomBytes(2);
 
     const header = Buffer.concat([

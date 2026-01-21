@@ -5,6 +5,8 @@ const crypto = require("crypto");
 const lora_packet = require("lora-packet");
 const { AesCmac } = require('aes-cmac');
 const EventEmitter = require('events');
+const PacketForwarder = require("../packet-forwarder");
+const { hostname } = require("os");
 
 
 class Device extends EventEmitter{
@@ -14,25 +16,6 @@ class Device extends EventEmitter{
     this.edge = edge;
     this.FPort = this.edge == true ? 4 : 2;
     this.fcnt = 0;
-
-    this.on("edge_join_req", () => {
-        const { publicKeyCompressed, privateKey} = this.generateCompressedPublicKey();
-
-        this.tempPrivateKey = privateKey;
-        
-        // GET the current counter
-        const currentFcnt = this.fcnt;
-
-        console.log(`[*] Creating Packet with FCnt: ${currentFcnt}`);
-
-        this.createEdgeJoinRequest(publicKeyCompressed, currentFcnt);
-
-        // INCREMENT it for next time
-        this.fcnt += 1; 
-
-        // this.sendLoRaPacket();
-        console.log(`[*] Edge join request sent. Next FCnt will be: ${this.fcnt}`);
-    });
   }
 
   isEdge() {
@@ -115,7 +98,6 @@ class Device extends EventEmitter{
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
   */
   createEdgeJoinRequest = (generateCompressedPublicKey, FCnt) => {
-    console.log("There is a Dev address",this.session.devAddr);
     const packet = lora_packet.fromFields(
       {
         MType: "Unconfirmed Data Up",

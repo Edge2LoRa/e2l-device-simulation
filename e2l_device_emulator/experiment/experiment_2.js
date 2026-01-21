@@ -65,9 +65,30 @@ const Experiment2 = class {
               nwkSKey,
               appSKey
             );
-            device.fCnt = 0;
+            device.fcnt = 0;
             if(device.isEdge()){
-              device.emit("edge_join_req");
+              const { publicKeyCompressed, privateKey} = device.generateCompressedPublicKey();
+        
+                device.tempPrivateKey = privateKey;
+                
+                // GET the current counter
+                const currentFcnt = device.fcnt;
+        
+                console.log(`[*] Creating Packet with FCnt: ${currentFcnt}`);
+        
+                const packet = device.createEdgeJoinRequest(publicKeyCompressed, currentFcnt);
+
+                if (!packet) {
+                    console.error(`[!] Failed to create EdgeJoinRequest packet. Packet was ${packet}`);
+                    return; 
+                }
+        
+                // INCREMENT it for next time
+                device.fcnt += 1; 
+                // const packetBuffer = Buffer.from("QNabzAAAAAAEAcFzoKsLkXyOfJMPkvWYSnwgzJ1+lChMcddtTOOjcZZNG5Vp7w==", "base64");
+                // console.log("HERE is the Edge join Packet:",packet);
+                this.packetForwarder.emit("edge_join_forward", packet, this.gwId);
+                console.log(`[*] Edge join request sent. Next FCnt will be: ${device.fcnt}`);
             }
             this.pendingJoins.delete(devNonceHex);
 
@@ -260,8 +281,7 @@ const Experiment2 = class {
             };
             const packetForwarder = this.packetForwarders[gw_id];
             const udpPacket = await packetForwarder.encodeUplink(packet, options, gw_id);
-            await packetForwarder
-              .sendUplink(udpPacket);
+            await packetForwarder.sendUplink(udpPacket);
           }
         })
         .on("error", (error) => {
@@ -311,7 +331,7 @@ const Experiment2 = class {
       // Add delay between files
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-
+    this.packetForwarder.stopPulling();
     console.log("Experiment completed.");
 
   } catch (err) {
