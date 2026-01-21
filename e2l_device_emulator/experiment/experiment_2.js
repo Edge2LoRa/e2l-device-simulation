@@ -25,6 +25,7 @@ const Experiment2 = class {
 
     this.devices = {};
     this.pendingJoins = new Map();
+     this.devNonceMap= {};
 
     // CREATE PACKET FORWARDERS
     this.packetForwarders = {};
@@ -43,6 +44,20 @@ const Experiment2 = class {
     this.gwId = thirdGateway.id;
     this.packetForwarder = this.packetForwarders[this.gwId];
     
+  }
+ 
+  getNextDevNonce(devEui) {
+    if (!(devEui in this.devNonceMap)) {
+      this.devNonceMap[devEui] = 0;
+    }
+
+    this.devNonceMap[devEui]++;
+
+    if (this.devNonceMap[devEui] > 0xffff) {
+      throw new Error("DevNonce exhausted");
+    }
+
+    return this.devNonceMap[devEui];
   }
   waitForJoinCompletion = async () => {
     return new Promise((resolve, reject) => {
@@ -85,8 +100,7 @@ const Experiment2 = class {
         
                 // INCREMENT it for next time
                 device.fcnt += 1; 
-                // const packetBuffer = Buffer.from("QNabzAAAAAAEAcFzoKsLkXyOfJMPkvWYSnwgzJ1+lChMcddtTOOjcZZNG5Vp7w==", "base64");
-                // console.log("HERE is the Edge join Packet:",packet);
+                
                 this.packetForwarder.emit("edge_join_forward", packet, this.gwId);
                 console.log(`[*] Edge join request sent. Next FCnt will be: ${device.fcnt}`);
             }
@@ -166,41 +180,50 @@ const Experiment2 = class {
         
       }else{  
         if(!('session' in deviceData)){
-          const version = deviceData.lorawan_version;
-          //Sending Packet-step1
-          const signedBuffer = await device.createJoinRequest(
-            deviceData.ids.dev_eui,
-            deviceData.ids.join_eui,
-            deviceData.root_keys.app_key.key
-          );
-          if (version.includes("1_0")) { 
-              // LoRaWAN 1.0.x uses AppKey for the Join Request MIC
-              // const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, AppKey);
-              const devNonceHex = signedBuffer[1].toString("hex");
-              pendingJoins.set(devNonceHex, device);
-              //Sending Packet-step2
-              const udpPacket = await packetForwarder.encodeUplink(signedBuffer[0], null, this.gwId);
-              try {
-                  //Sending Packet-step3
-                  await packetForwarder.sendUplink(udpPacket);
-                  // Store the device so we can process the Join Accept later
-                  this.devices[device_id] = device; 
-                  console.log(`[OTAA] Sent Join Request for ${device_id} (v1.0.x)`);
-              } catch (err) {
-                  console.error(`[ERR] Failed to send Join for ${device_id}:`, err);
-              }
-              
-          }else if (version.includes("1_1")) {
-              // LoRaWAN 1.1 requires NwkKey for Join MIC
-              const NwkKey = deviceData.root_keys.nwk_key ? deviceData.root_keys.nwk_key.key : AppKey;
-              console.log(`[OTAA] Preparing 1.1 Join for ${device_id} using NwkKey.`);
-              
-              // const signedBuffer = await device.createJoinRequest(dev_eui, app_eui, NwkKey);
-              const udpPacket = await packetForwarder.encodeUplink(signedBuffer[0], this.gwId);
-              
+          let signedBuffer = null;
+            if (deviceData.lorawan_version.startsWith("MAC_V1_0")) {
+              const [phyPayload, devNonce] =
+                await device.createJoinRequest10(
+                  deviceData.ids.dev_eui,
+                  deviceData.ids.join_eui,
+                  deviceData.root_keys.app_key.key
+                );
+
+              pendingJoins.set(devNonce.toString("hex"), device);
+              signedBuffer = phyPayload;
+
+            }else if (deviceData.lorawan_version.startsWith("MAC_V1_1")) {
+              const nextNonceValue = this.getNextDevNonce(deviceData.ids.dev_eui);
+
+              const devNonce = Buffer.alloc(2);
+              devNonce.writeUInt16LE(nextNonceValue, 0);
+              const appKey = deviceData.root_keys.app_key.key;
+              const nwkKey = deviceData.root_keys.nwk_key
+                ? deviceData.root_keys.nwk_key.key
+                : appKey; // fallback
+
+
+              const [phyPayload] = await device.createJoinRequest11(deviceData.ids.dev_eui, deviceData.ids.join_eui,
+                  appKey,
+                  nwkKey,
+                  devNonce
+                );
+
+              pendingJoins.set(devNonce.toString("hex"), device);
+              signedBuffer = phyPayload;
+            }else{
+              console.warn("Version of LoRaWAN has not defined");
+            }
+            
+            const udpPacket = await packetForwarder.encodeUplink(signedBuffer,null,this.gwId);
+
+            try {
               await packetForwarder.sendUplink(udpPacket);
               this.devices[device_id] = device;
-          }
+              console.log(`[OTAA] Sent Join Request for ${device_id}`);
+            } catch (err) {
+              console.error(`[ERR] Failed to send Join for ${device_id}:`, err);
+            } 
         }else{
           console.log("handle devNonce!!");
            device.session = {

@@ -71,7 +71,7 @@ class Device extends EventEmitter{
 |  (1 byte) |   (8 bytes)    |   (8 bytes)    |(2 bytes)|(4 bytes) |
 +-----------+----------------+----------------+---------+-------+--+
 */
-  createJoinRequest = async (DevEUI, AppEUI, AppKey) => {
+ createJoinRequest10 = async (DevEUI, AppEUI, AppKey) => {
     const devNonce = crypto.randomBytes(2);
 
     // 1. Create packet without a key (will have EEEEEEEE)
@@ -94,6 +94,26 @@ class Device extends EventEmitter{
     return [phyPayload,joinPacket.DevNonce];
   };
 
+  createJoinRequest11 = async (DevEUI,JoinEUI,AppKey,NwkKey,devNonce) => {
+
+    const joinPacket = lora_packet.fromFields({
+      MType: "Join Request",
+      AppEUI: Buffer.from(JoinEUI, "hex"),
+      DevEUI: Buffer.from(DevEUI, "hex"),
+      DevNonce: Buffer.from(devNonce).reverse()
+    });
+
+    // LoRaWAN 1.1 MIC MUST use NwkKey
+    const mic = await this.calculateJoinMIC(joinPacket, NwkKey);
+
+    const phyPayload = Buffer.concat([
+      joinPacket.getPHYPayload().subarray(0, -4),
+      mic
+    ]);
+
+    return [phyPayload, devNonce];
+  };
+
   /***************************************************************************************
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
   */
@@ -109,7 +129,7 @@ class Device extends EventEmitter{
           FPending: false,
         },
         FCnt: FCnt,
-        FPort: 4, // Application port for edge key exchange
+        FPort: 3, // Application port for edge key exchange
         payload: generateCompressedPublicKey, // 33 bytes
       },
       Buffer.from(this.AppSKey, "hex"),
