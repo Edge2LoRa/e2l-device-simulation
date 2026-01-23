@@ -15,17 +15,21 @@ const Experiment2 = class {
     deviceNumber,
     legacyEdgeRatio,
     gatewayList,
-    packetDataFolder
+    packetDataFolder,
+    devNonceList, 
+    devNonceFile
   ) 
   {
     this.legacyEdgeRatio = legacyEdgeRatio;
     this.packetDataFolder = packetDataFolder;
     this.deviceList = deviceList;
+    this.devNonceFile = devNonceFile;
     this.deviceNumber = deviceNumber;
 
     this.devices = {};
     this.pendingJoins = new Map();
-     this.devNonceMap= {};
+    this.devNonceMap= devNonceList;
+
 
     // CREATE PACKET FORWARDERS
     this.packetForwarders = {};
@@ -45,27 +49,34 @@ const Experiment2 = class {
     this.packetForwarder = this.packetForwarders[this.gwId];
     
   }
- 
+ //Start Handling DevNonce while you are using LoRaWAN1.1
   getNextDevNonce(devEui) {
     if (!(devEui in this.devNonceMap)) {
       this.devNonceMap[devEui] = 0;
     }
 
-    this.devNonceMap[devEui]++;
+    const next = this.devNonceMap[devEui] + 1;
 
-    if (this.devNonceMap[devEui] > 0xffff) {
-      throw new Error("DevNonce exhausted");
+    if (next > 0xffff) {
+      throw new Error(`DevNonce exhausted for ${devEui}`);
     }
 
-    return this.devNonceMap[devEui];
+    this.devNonceMap[devEui] = next;
+    this.saveNonce();
+
+    return next;
   }
+  saveNonce() {
+    fs.writeFileSync(this.devNonceFile,JSON.stringify(this.devNonceMap, null, 2));
+  }
+  //End Handling DevNonce
+
   waitForJoinCompletion = async () => {
     return new Promise((resolve, reject) => {
       // Register the handler inside the Promise
       this.packetForwarder.registerJoinAcceptHandler((phyPayload) => {
         const mtype = (phyPayload[0] >> 5) & 0x07;
         if (mtype !== 0x01) return; // Ignore non-JoinAccept packets
-
         for (const [devNonceHex, device] of this.pendingJoins.entries()) {
           
           // CHECK: If this device successfully joins
@@ -188,15 +199,15 @@ const Experiment2 = class {
                   deviceData.ids.join_eui,
                   deviceData.root_keys.app_key.key
                 );
-
               pendingJoins.set(devNonce.toString("hex"), device);
               signedBuffer = phyPayload;
 
             }else if (deviceData.lorawan_version.startsWith("MAC_V1_1")) {
-              const nextNonceValue = this.getNextDevNonce(deviceData.ids.dev_eui);
+              const nextNonceValue =this.getNextDevNonce(deviceData.ids.dev_eui);
 
               const devNonce = Buffer.alloc(2);
               devNonce.writeUInt16LE(nextNonceValue, 0);
+
               const appKey = deviceData.root_keys.app_key.key;
               const nwkKey = deviceData.root_keys.nwk_key
                 ? deviceData.root_keys.nwk_key.key
@@ -225,7 +236,6 @@ const Experiment2 = class {
               console.error(`[ERR] Failed to send Join for ${device_id}:`, err);
             } 
         }else{
-          console.log("handle devNonce!!");
            device.session = {
             devAddr: deviceData.session.dev_addr,
             nwkSKey: deviceData.session.keys.f_nwk_s_int_key.key,

@@ -13,12 +13,16 @@ const main = async () => {
   const ratio = experimentInfo.ratio;
   const deviceNumber = experimentInfo.deviceNumber;
   const deviceListFile = experimentInfo.deviceList;
+  const devNonceListFile = experimentInfo.devNonceList;
   const gatewayListFile = experimentInfo.gatewayList;
   const snapshotFolder = experimentInfo.snapshotFolder;
   // Read the JSON file containing gateway information
   const gatewayList = JSON.parse(fs.readFileSync(gatewayListFile));
   // Read the JSON file containing device information
   const deviceList = JSON.parse(fs.readFileSync(deviceListFile));
+  // Read the JSON file containing devNonce Information
+  const devNonceList = JSON.parse(fs.readFileSync(devNonceListFile));
+
   
 
   // Init and run experiment
@@ -27,7 +31,9 @@ const main = async () => {
     deviceNumber,
     ratio,
     gatewayList,
-    snapshotFolder
+    snapshotFolder,
+    devNonceList,
+    devNonceListFile
   );
   await new Promise((resolve) => setTimeout(resolve, 1000));
   await experiment.run();
