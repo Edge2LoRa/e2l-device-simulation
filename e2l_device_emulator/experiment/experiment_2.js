@@ -368,7 +368,6 @@ const Experiment2 = class {
     console.log("Experiment completed.");
 
   } catch (err) {
-    // This catches critical errors from processDevices OR waitForJoinCompletion
     console.error("Critical error during experiment execution:", err);
   }
 };

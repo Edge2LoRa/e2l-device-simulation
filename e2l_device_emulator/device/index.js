@@ -114,8 +114,10 @@ class Device extends EventEmitter{
     return [phyPayload, devNonce];
   };
 
-  /***************************************************************************************
-   * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | compressedPubKey  | AppSKey | NwkSKey |
+  /*******************************************************************************
+   * +---------------------------------------------------------------------------+
+     | MHDR | DevAddr | FCtrl | FCnt | FPort | Encrypted(compressedPubKey) | MIC |
+     +---------------------------------------------------------------------------+
   */
   createEdgeJoinRequest = (generateCompressedPublicKey, FCnt) => {
     const packet = lora_packet.fromFields(
@@ -137,13 +139,12 @@ class Device extends EventEmitter{
     );
     return packet.getPHYPayload().toString("base64");
   };
-  /***************************************************************************************
-   * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | payload | AppSKey | NwkSKey |
+  /****************************************************************************
+   * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | payload | MIC |
   */
   createLoRaPacket = (payload, FCnt, session) => {
     const constructedPacket = lora_packet.fromFields(
       {
-        FPort: this.FPort, //FPort = 4 Device edge / FPort = 2 Device Legacy
         MType: "Unconfirmed Data Up",
         DevAddr: Buffer.from(session.devAddr, "hex"),
         FCtrl: {
@@ -153,6 +154,7 @@ class Device extends EventEmitter{
           FPending: false,
         },
         FCnt: FCnt, 
+        FPort: this.FPort, //FPort = 4 Device edge / FPort = 2 Device Legacy
         payload: payload, 
       },
       Buffer.from(session.nwkSKey, "hex"),
@@ -190,7 +192,6 @@ class Device extends EventEmitter{
       return true;
   };
   handleJoinAccept = (packet, devNonce) => {
-    console.log("handleJoinAccept!!")
     const AppNonce = packet.AppNonce;
     const NetID = packet.NetID;
     const DevNonce = devNonce;
