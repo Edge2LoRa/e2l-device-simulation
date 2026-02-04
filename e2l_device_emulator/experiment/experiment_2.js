@@ -4,9 +4,6 @@ const path = require("path");
 const Device = require("../device");
 const PacketForwarder = require("../packet-forwarder");
 const snr = require("./utils");
-const { rejects } = require("assert");
-const { type } = require('os');
-const { Console } = require("console");
 
 
 const Experiment2 = class {
@@ -84,13 +81,7 @@ const Experiment2 = class {
             console.log(`[✓] JoinAccept matched for ${device.id}`);
             
             const { devAddr, nwkSKey, appSKey } = device.session;
-            
-            this.savejoindSession(
-              device.id,
-              devAddr,
-              nwkSKey,
-              appSKey
-            );
+
             device.fcnt = 0;
             if(device.isEdge()){
               const { publicKeyCompressed, privateKey} = device.generateCompressedPublicKey();
@@ -124,34 +115,6 @@ const Experiment2 = class {
       });
     });
   };
-  savejoindSession(device_id, devAddr, nwkSKey, appSKey) {
-    console.log("Saving join session for", device_id);
-
-    const absPath = path.resolve(
-      './experiment_files/devices_preactivation/devices_no_session.json'
-    );
-
-    const raw = fs.readFileSync(absPath, "utf8");
-    const devices = JSON.parse(raw);
-
-    const device = devices.find(
-      d => d.ids?.device_id === device_id || d.id === device_id
-    );
-
-    if (!device) {
-      throw new Error(`Device ${device_id} not found in JSON file`);
-    }
-
-    device.session = {
-      dev_addr: devAddr.toUpperCase(),
-      keys: {
-        f_nwk_s_int_key: { key: nwkSKey.toUpperCase() },
-        app_s_key: { key: appSKey.toUpperCase() }
-      }
-    };
-
-    fs.writeFileSync(absPath, JSON.stringify(devices, null, 2));
-  }
   processDevices = async () => {
     
     const packetForwarder = this.packetForwarder;
@@ -330,47 +293,47 @@ const Experiment2 = class {
 
   run = async () => {
   try {
-    // --- PART 1: Device Processing ---
-    await this.processDevices();
-    console.log("Devices processed.");
+      // --- PART 1: Device Processing ---
+      await this.processDevices();
+      console.log("Devices processed.");
 
-    // If there IS a pending join, we wait. 
-    // If NOT, we simply skip this block and continue immediately.
-    const MAX_RETRIES = 10;
-    let attempts = 0;
+      // If there IS a pending join, we wait. 
+      // If NOT, we simply skip this block and continue immediately.
+      const MAX_RETRIES = 10;
+      let attempts = 0;
 
-    while (this.pendingJoins.size > 0 && attempts < MAX_RETRIES) {
-        const joinedDeviceId = await this.waitForJoinCompletion();
-        this.pendingJoins.delete(joinedDeviceId); 
-        attempts++;
-    }
-    // --- PART 2: Snapshot Processing ---
-    // We only reach here if Part 1 didn't throw an error.
-    console.log("Now reading snapshot files...");
-    
-    const snapshotFiles = fs.readdirSync(this.packetDataFolder);
-
-    for (const snapshotFile of snapshotFiles) {
-      console.log(`Processing ${snapshotFile}...`);
-      
-      // We use a nested try/catch here so one bad file doesn't stop the whole script
-      try {
-        const result = await this.processSnapshotFile(snapshotFile, this.deviceList);
-        console.log(result);
-      } catch (fileErr) {
-        console.error(`Failed to process file ${snapshotFile}:`, fileErr);
+      while (this.pendingJoins.size > 0 && attempts < MAX_RETRIES) {
+          const joinedDeviceId = await this.waitForJoinCompletion();
+          this.pendingJoins.delete(joinedDeviceId); 
+          attempts++;
       }
+      // --- PART 2: Snapshot Processing ---
+      // We only reach here if Part 1 didn't throw an error.
+      console.log("Now reading snapshot files...");
+      
+      const snapshotFiles = fs.readdirSync(this.packetDataFolder);
 
-      // Add delay between files
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      for (const snapshotFile of snapshotFiles) {
+        console.log(`Processing ${snapshotFile}...`);
+        
+        // We use a nested try/catch here so one bad file doesn't stop the whole script
+        try {
+          const result = await this.processSnapshotFile(snapshotFile, this.deviceList);
+          console.log(result);
+        } catch (fileErr) {
+          console.error(`Failed to process file ${snapshotFile}:`, fileErr);
+        }
+
+        // Add delay between files
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      this.packetForwarder.stopPulling();
+      console.log("Experiment completed.");
+
+    } catch (err) {
+      console.error("Critical error during experiment execution:", err);
     }
-    this.packetForwarder.stopPulling();
-    console.log("Experiment completed.");
-
-  } catch (err) {
-    console.error("Critical error during experiment execution:", err);
-  }
-};
+  };
 
 };
 

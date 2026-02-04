@@ -17,10 +17,12 @@ class PacketForwarder extends EventEmitter {
     this.emitter = new EventEmitter();
 
     this.MESSAGE_TYPES = {
-      PUSH_ACK: 0x01,
-      PULL_ACK: 0x04,
-      PULL_RESP: 0x03,
-      TX_ACK: 0x05
+      PUSH_DATA: 0x00,//Join-request
+      PUSH_ACK: 0x01,//Join-accept
+      PULL_DATA:0x02,//Unconfirmed Data Up
+      PULL_RESP: 0x03,//Unconfirmed Data Down
+      PULL_ACK: 0x04,//Confirmed Data Up 
+      TX_ACK: 0x05//Confirmed Data Down
     };
 
     this.pullInterval = null;
@@ -112,6 +114,7 @@ class PacketForwarder extends EventEmitter {
         data: phyPayload.toString("base64")
       }]
     };
+    
     const token = crypto.randomBytes(2);
 
     const header = Buffer.concat([

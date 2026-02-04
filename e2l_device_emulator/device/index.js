@@ -76,7 +76,7 @@ class Device extends EventEmitter{
 
     // 1. Create packet without a key (will have EEEEEEEE)
     const joinPacket = lora_packet.fromFields({
-        MType: "Join Request",
+        MType: "Join Request",//000-MType
         AppEUI: Buffer.from(AppEUI, "hex"),
         DevEUI: Buffer.from(DevEUI, "hex"),
         DevNonce: devNonce.reverse(),
@@ -97,7 +97,7 @@ class Device extends EventEmitter{
   createJoinRequest11 = async (DevEUI,JoinEUI,AppKey,NwkKey,devNonce) => {
 
     const joinPacket = lora_packet.fromFields({
-      MType: "Join Request",
+      MType: "Join Request",//000-MType
       AppEUI: Buffer.from(JoinEUI, "hex"),
       DevEUI: Buffer.from(DevEUI, "hex"),
       DevNonce: Buffer.from(devNonce).reverse()
@@ -122,7 +122,7 @@ class Device extends EventEmitter{
   createEdgeJoinRequest = (generateCompressedPublicKey, FCnt) => {
     const packet = lora_packet.fromFields(
       {
-        MType: "Unconfirmed Data Up",
+        MType: "Unconfirmed Data Up",//010-MType
         DevAddr: Buffer.from(this.session.devAddr, "hex"),
         FCtrl: {
           ADR: false,
@@ -145,7 +145,7 @@ class Device extends EventEmitter{
   createLoRaPacket = (payload, FCnt, session) => {
     const constructedPacket = lora_packet.fromFields(
       {
-        MType: "Unconfirmed Data Up",
+        MType: "Unconfirmed Data Up",//010-MType
         DevAddr: Buffer.from(session.devAddr, "hex"),
         FCtrl: {
           ADR: false,
