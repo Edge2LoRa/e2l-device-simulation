@@ -1,4 +1,4 @@
-const { Experiment2 } = require("./e2l_device_emulator");
+const { Experiment3 } = require("./e2l_device_emulator");
 const fs = require("fs");
 
 console.log("Running experiment 1");
@@ -26,7 +26,7 @@ const main = async () => {
   
 
   // Init and run experiment
-  const experiment = new Experiment2(
+  const experiment = new Experiment3(
     deviceList,
     deviceNumber,
     ratio,

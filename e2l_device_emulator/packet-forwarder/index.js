@@ -145,7 +145,6 @@ class PacketForwarder extends EventEmitter {
   }
 
   sendUplink(phyPayload) {
-    console.log(phyPayload);
     this.socket.send(phyPayload, this.port, this.host, (err) => {
       if (err) {
         console.error("[!] UDP send error:", err);
