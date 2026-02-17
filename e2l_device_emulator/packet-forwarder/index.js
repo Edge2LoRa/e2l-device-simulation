@@ -98,22 +98,40 @@ class PacketForwarder extends EventEmitter {
   }
   encodeUplink= async(phyPayload, options=null, gwId) => {
     const gwBuf = Buffer.from(gwId,'hex');
-    const rxpk = {
-      rxpk: [{
-        tmst: Math.floor(Math.random() * 0xffffffff), 
-        chan: 0,
-        rfch: 0,
-        freq: 868.1,
-        stat: 1,
-        modu: "LORA",
-        datr: "SF7BW125",
-        codr: "4/5",
-        lsnr: 7.5,
-        rssi: -35,
-        size: phyPayload.length,
-        data: phyPayload.toString("base64")
-      }]
-    };
+    let rxpk;
+    if(options){
+      rxpk = {
+        rxpk: [{
+          tmst: Math.floor(Math.random() * 0xffffffff), 
+          chan: 2,
+          freq: options.freq || 868.1,
+          stat: options.stat || 1,
+          modu: "LORA",
+          datr: options.spreadingFactor+"BW125",
+          codr: "4/5",
+          lsnr: options.lsnr || 7.5,
+          rssi: options.rssi || -35,
+          size: phyPayload.length,
+          data: phyPayload.toString("base64")
+        }]
+      };
+    }else{
+       rxpk = {
+        rxpk: [{
+          tmst: Math.floor(Math.random() * 0xffffffff), 
+          chan: 0,
+          freq: 868.1,
+          stat: 1,
+          modu: "LORA",
+          datr: "SF7BW125",
+          codr: "4/5",
+          lsnr: 7.5,
+          rssi: -35,
+          size: phyPayload.length,
+          data: phyPayload.toString("base64")
+        }]
+      };
+    }
     
     const token = crypto.randomBytes(2);
 
@@ -121,13 +139,13 @@ class PacketForwarder extends EventEmitter {
       Buffer.from([0x02]), 
       token,
       Buffer.from([0x00]), 
-      this.gwEui
+      gwBuf
     ]);
-
     return Buffer.concat([header, Buffer.from(JSON.stringify(rxpk))]);
   }
 
   sendUplink(phyPayload) {
+    console.log(phyPayload);
     this.socket.send(phyPayload, this.port, this.host, (err) => {
       if (err) {
         console.error("[!] UDP send error:", err);

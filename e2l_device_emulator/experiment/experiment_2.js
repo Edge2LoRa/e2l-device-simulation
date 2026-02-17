@@ -81,7 +81,7 @@ const Experiment2 = class {
             console.log(`[✓] JoinAccept matched for ${device.id}`);
             
             const { devAddr, nwkSKey, appSKey } = device.session;
-
+            
             device.fcnt = 0;
             if(device.isEdge()){
               const { publicKeyCompressed, privateKey} = device.generateCompressedPublicKey();
