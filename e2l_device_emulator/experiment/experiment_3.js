@@ -99,7 +99,10 @@ const Experiment3 = class {
                     console.error(`[!] Failed to create EdgeJoinRequest packet. Packet was ${packet}`);
                     return; 
                 }
-        
+                this.packetForwarder.registerDownlinkHandler((phyPayload) => {
+                  device.handleDataDownlink(phyPayload, privateKey);
+                });
+                
                 // INCREMENT it for next time
                 device.fcnt += 1; 
                 
@@ -107,8 +110,6 @@ const Experiment3 = class {
                 console.log(`[*] Edge join request sent. Next FCnt will be: ${device.fcnt}`);
             }
             this.pendingJoins.delete(devNonceHex);
-
-            // UNBLOCK the process: This tells the await to proceed
             resolve(device.id); 
           }
         }

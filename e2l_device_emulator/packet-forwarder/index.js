@@ -2,8 +2,7 @@ const dgram = require("dgram");
 const crypto = require("crypto");
 const EventEmitter = require('events');
 const lora_packet = require('lora-packet');
-const Device = require("../device");
-const { Console } = require("console");
+const { decrypt } = require("lora-packet/out/lib/crypto");
 
 
 class PacketForwarder extends EventEmitter {
@@ -14,6 +13,7 @@ class PacketForwarder extends EventEmitter {
     this.port = port;
     this.socket = dgram.createSocket("udp4");
     this._joinAcceptHandler = null;
+    this._downLinkHandler = null;
     this.emitter = new EventEmitter();
 
     this.MESSAGE_TYPES = {
@@ -31,6 +31,9 @@ class PacketForwarder extends EventEmitter {
   registerJoinAcceptHandler(handler) {
     this._joinAcceptHandler = handler;
   }
+  registerDownlinkHandler(handler) {
+    this._downLinkHandler = handler;
+  }
   initListeners() {
     this.socket.on("message", (msg) => {
       const type = msg[3];
@@ -46,6 +49,7 @@ class PacketForwarder extends EventEmitter {
 
         case this.MESSAGE_TYPES.PULL_RESP:
           this.handlePullResp(msg);
+          console.log("PULL_RESP received!");
           break;
         case this.MESSAGE_TYPES.TX_ACK:
           console.log("Handle Edge Join Request!!");
@@ -64,7 +68,10 @@ class PacketForwarder extends EventEmitter {
     this.startPulling();
 
     this.on("downlink", ({ phyPayload, txpk }) => {
-      this.emit("raw_downlink", { phyPayload, txpk });
+      // this.emit("raw_downlink", { phyPayload, txpk });
+      if (this._downLinkHandler) {
+        this._downLinkHandler(phyPayload);
+      }
     });
     this.on("edge_join_forward",async (packet, gw_id)=>{
       const udpPacket = await this.encodeUplink(packet, null, gw_id);
@@ -144,7 +151,7 @@ class PacketForwarder extends EventEmitter {
     return Buffer.concat([header, Buffer.from(JSON.stringify(rxpk))]);
   }
 
-  sendUplink(phyPayload) {
+  sendUplink(phyPayload) { 
     this.socket.send(phyPayload, this.port, this.host, (err) => {
       if (err) {
         console.error("[!] UDP send error:", err);
@@ -162,22 +169,23 @@ class PacketForwarder extends EventEmitter {
 
       const phyPayload = Buffer.from(payload.txpk.data, "base64");
 
-      // Emit generic downlink for anyone who wants it
-      this.emit("downlink", { phyPayload, txpk: payload.txpk });
+      console.log("[↓] Downlink received");
+
+      // Emit raw downlink to upper layer
+      this.emit("downlink", {
+        phyPayload,
+        txpk: payload.txpk,
+      });
 
       // Call the optional JoinAccept handler if registered
       if (this._joinAcceptHandler) {
         this._joinAcceptHandler(phyPayload);
       }
 
-      this.sendUdpTxAck(msg.subarray(0, 4)); 
-
-      // B. Satisfy your Code (Logic)
-      // Trigger the next step in your script
-      this.emit("tx_ack");
-
+      // Send UDP TX_ACK to server
+      this.sendUdpTxAck(msg.subarray(0, 4));
     } catch (err) {
-      console.error("Failed to parse PULL_RESP:", err);
+      console.error("[!] Failed to parse PULL_RESP:", err);
     }
   }
   

@@ -22,12 +22,12 @@ class Device extends EventEmitter{
     return this.edge;
   }
   generateCompressedPublicKey() {
-        const ecdh = createECDH("prime256v1");
-        ecdh.generateKeys();
+        const ecdhE2ED = createECDH("prime256v1");
+        ecdhE2ED.generateKeys();
   
         return {
-          publicKeyCompressed: ecdh.getPublicKey(null, "compressed"), // 33 bytes
-          privateKey: ecdh.getPrivateKey(),
+          publicKeyCompressed: ecdhE2ED.getPublicKey(null, "compressed"), // 33 bytes
+          privateKey: ecdhE2ED.getPrivateKey(),
         };
   };
 
@@ -119,7 +119,7 @@ class Device extends EventEmitter{
      | MHDR | DevAddr | FCtrl | FCnt | FPort | Encrypted(compressedPubKey) | MIC |
      +---------------------------------------------------------------------------+
   */
-  createEdgeJoinRequest = (generateCompressedPublicKey, FCnt) => {
+  createEdgeJoinRequest = (publicKeyCompressed, FCnt) => {
     const packet = lora_packet.fromFields(
       {
         MType: "Unconfirmed Data Up",//010-MType
@@ -132,7 +132,7 @@ class Device extends EventEmitter{
         },
         FCnt: FCnt,
         FPort: 3, // Application port for edge key exchange
-        payload: generateCompressedPublicKey, // 33 bytes
+        payload: publicKeyCompressed, // 33 bytes
       },
       Buffer.from(this.AppSKey, "hex"),
       Buffer.from(this.NwkSKey, "hex")
@@ -221,10 +221,40 @@ class Device extends EventEmitter{
       devAddr: this.DevAddr.toString("hex"),
       nwkSKey: this.NwkSKey.toString("hex"),
       appSKey: this.AppSKey.toString("hex")
-    };
-   
-    
+    };   
   };
-};
+  handleDataDownlink(phyPayload,privateKey) {
+    const packet = lora_packet.fromWire(phyPayload);
+    const fPort = packet.getFPort();
+    if (fPort === 4) {
+       console.log("[↓] Downlink received for Device Edge (FPort=4)",phyPayload);
+        console.log("[✓] EdgeJoin response received");
+    }
+    const ecdh = createECDH("prime256v1");
+    ecdh.setPrivateKey(privateKey);
+    const g_as_gw = lora_packet.decrypt(packet, Buffer.from(this.AppSKey, "hex"), Buffer.from(this.NwkSKey, "hex"));
+    const as_gw_pubKey =Buffer.from(g_as_gw);
+    if (as_gw_pubKey.length !== 65 || as_gw_pubKey[0] !== 4) {
+        throw new Error("Not a valid uncompressed P-256 public key");
+    }
+    try {
+        const edge_s_key = ecdh.computeSecret(as_gw_pubKey);
+        //Now prepare edge_s_key for hashing
+        const edgeSIntKeyBuffer = Buffer.concat([Buffer.from([0x00]),edge_s_key]);
+        const edgeSEncKeyBuffer = Buffer.concat([Buffer.from([0x01]),edge_s_key]);
+        // Hashing
+        const edgeSIntKey = crypto.createHash("sha256").update(edgeSIntKeyBuffer).digest().subarray(0, 16);
+        const edgeSEncKey = crypto.createHash("sha256").update(edgeSEncKeyBuffer).digest().subarray(0, 16);
+        
+        const final_aes_key = crypto.createHash('sha256').update(edge_s_key).digest().slice(0, 16);
+        console.log("Final 16-byte EdgeSKey:", final_aes_key.toString("hex"));
 
+    } catch (err) {
+        console.error("Failed to compute secret. Ensure the public key is valid.", err.message);
+    }
+
+    console.log("[✓] EdgeJoin Accepted!");
+   }
+  
+};
 module.exports = Device;

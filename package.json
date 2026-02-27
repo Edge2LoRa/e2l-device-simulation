@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@fast-csv/parse": "^5.0.0",
-    "lora-packet": "^0.8.25"
+    "lora-packet": "^0.8.25",
+    "mqtt": "^5.15.0"
   }
 }
