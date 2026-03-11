@@ -151,14 +151,17 @@ class PacketForwarder extends EventEmitter {
     ]);
     return Buffer.concat([header, Buffer.from(JSON.stringify(rxpk))]);
   }
-
-  sendUplink(phyPayload) { 
-    this.socket.send(phyPayload, this.port, this.host, (err) => {
-      if (err) {
-        console.error("[!] UDP send error:", err);
-      } else {
-        console.log("[↑] Uplink sent");
-      }
+  sendUplink(phyPayload) {
+    return new Promise((resolve, reject) => {
+      this.socket.send(phyPayload, this.port, this.host, (err) => {
+        if (err) {
+          console.error("[!] UDP send error:", err);
+          reject(err);
+        } else {
+          console.log("[↑] Uplink sent");
+          resolve();
+        }
+      });
     });
   }
   handlePullResp(msg) {

@@ -70,7 +70,11 @@ class Experiment3 extends EventEmitter {
     fs.writeFileSync(this.devNonceFile,JSON.stringify(this.devNonceMap, null, 2));
   }
   //End Handling DevNonce
-
+  waitForUplink= async(packetForwarder)=> {
+    return new Promise((resolve) => {
+      this.packetForwarder.once("Uplink sent", resolve);
+    });
+  }
   waitForJoinCompletion = async () => {
     return new Promise((resolve, reject) => {
       // Register the handler inside the Promise
@@ -221,13 +225,13 @@ class Experiment3 extends EventEmitter {
               const device = this.devices[nodeId];
               const gw_id = "0000000000000004";
 
-              for (let i = 0; i < 1; i++) {
+              for (let i = 0; i < 5; i++) {
                 console.log("To Send a packet",i);
-
-                const packet = device.createLoRaPacket(payload , fCnt, device.session);
+                const packet = device.createLoRaPacket(payload , fCnt+i, device.session);
                 const packetForwarder = this.packetForwarders[gw_id];
                 const udpPacket = await packetForwarder.encodeUplink(packet, null, gw_id);
                 await packetForwarder.sendUplink(udpPacket);
+
               }
 
               resolve("Processed Packets.");
