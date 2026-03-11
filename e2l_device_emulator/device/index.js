@@ -143,24 +143,51 @@ class Device extends EventEmitter{
    * | "Unconfirmed Data Up" | DevAddr | FCtrl | FCnt | FPort | payload | MIC |
   */
   createLoRaPacket = (payload, FCnt, session) => {
-    const constructedPacket = lora_packet.fromFields(
-      {
-        MType: "Unconfirmed Data Up",//010-MType
-        DevAddr: Buffer.from(session.devAddr, "hex"),
-        FCtrl: {
-          ADR: false,
-          ACK: false,
-          ADRACKReq: false,
-          FPending: false,
+    if (session.edgeEncKey!=null){
+      const edgeEncKey = Buffer.from(session.edgeEncKey, "hex");
+      const edgeIntKey = Buffer.from(session.edgeIntKey, "hex");
+      
+      const constructedPacket = lora_packet.fromFields(
+        {
+          MType: "Unconfirmed Data Up", // 010-MType
+          DevAddr: Buffer.from(session.devAddr, "hex"),
+          FCtrl: {
+            ADR: false,
+            ACK: false,
+            ADRACKReq: false,
+            FPending: false,
+          },
+          FCnt: FCnt, 
+          FPort: this.FPort,
+          payload: payload, 
         },
-        FCnt: FCnt, 
-        FPort: this.FPort, //FPort = 4 Device edge / FPort = 2 Device Legacy
-        payload: payload, 
-      },
-      Buffer.from(session.nwkSKey, "hex"),
-      Buffer.from(session.appSKey, "hex")
-    );
-    return constructedPacket.getPHYPayload().toString("base64");
+        edgeEncKey, 
+        edgeIntKey  
+      );
+
+      return constructedPacket.getPHYPayload().toString("base64");
+
+    }else{
+       const constructedPacket = lora_packet.fromFields(
+       {
+          MType: "Unconfirmed Data Up",//010-MType
+          DevAddr: Buffer.from(session.devAddr, "hex"),
+          FCtrl: {
+            ADR: false,
+            ACK: false,
+            ADRACKReq: false,
+            FPending: false,
+          },
+          FCnt: FCnt, 
+          FPort: this.FPort, //FPort = 4 Device edge / FPort = 2 Device Legacy
+          payload: payload, 
+        },
+        Buffer.from(session.nwkSKey, "hex"),
+        Buffer.from(session.appSKey, "hex")
+      );
+      return constructedPacket.getPHYPayload().toString("base64");
+
+    }
   };
 
   sendLoRaPacket = (packetInfo, frameLoss, packetForwarder) => {
@@ -228,7 +255,7 @@ class Device extends EventEmitter{
     const fPort = packet.getFPort();
     if (fPort === 4) {
        console.log("[↓] Downlink received for Device Edge (FPort=4)",phyPayload);
-        console.log("[✓] EdgeJoin response received");
+       this.emit("EdgeJoinAccepted");
     }
     const ecdh = createECDH("prime256v1");
     ecdh.setPrivateKey(privateKey);
@@ -247,6 +274,8 @@ class Device extends EventEmitter{
         const edgeSEncKey = crypto.createHash("sha256").update(edgeSEncKeyBuffer).digest().subarray(0, 16);
         
         const final_aes_key = crypto.createHash('sha256').update(edge_s_key).digest().slice(0, 16);
+        this.session.edgeEncKey = edgeSEncKey;
+        this.session.edgeIntKey = edgeSIntKey;
         console.log("Final 16-byte EdgeSKey:", final_aes_key.toString("hex"));
 
     } catch (err) {
@@ -255,6 +284,7 @@ class Device extends EventEmitter{
 
     console.log("[✓] EdgeJoin Accepted!");
    }
+   
   
 };
 module.exports = Device;

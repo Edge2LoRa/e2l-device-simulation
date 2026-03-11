@@ -4,9 +4,11 @@ const path = require("path");
 const Device = require("../device");
 const PacketForwarder = require("../packet-forwarder");
 const snr = require("./utils");
+const EventEmitter = require('events');
+const { assert } = require("console");
 
 
-const Experiment3 = class {
+class Experiment3 extends EventEmitter {
   constructor(
     deviceList,
     deviceNumber,
@@ -17,6 +19,7 @@ const Experiment3 = class {
     devNonceFile
   ) 
   {
+    super();
     this.legacyEdgeRatio = legacyEdgeRatio;
     this.packetDataFolder = packetDataFolder;
     this.deviceList = deviceList;
@@ -75,42 +78,39 @@ const Experiment3 = class {
         const mtype = (phyPayload[0] >> 5) & 0x07;
         if (mtype !== 0x01) return; // Ignore non-JoinAccept packets
         for (const [devNonceHex, device] of this.pendingJoins.entries()) {
-          
-          // CHECK: If this device successfully joins
           if (device.tryJoinAccept(phyPayload, devNonceHex)) {
-            console.log(`[✓] JoinAccept matched for ${device.id}`);
-            
-            const { devAddr, nwkSKey, appSKey } = device.session;
-            
-            device.fcnt = 0;
-            if(device.isEdge()){
-              const { publicKeyCompressed, privateKey} = device.generateCompressedPublicKey();
-        
-                device.tempPrivateKey = privateKey;
-                
-                // GET the current counter
-                const currentFcnt = device.fcnt;
-        
-                console.log(`[*] Creating Packet with FCnt: ${currentFcnt}`);
-        
-                const packet = device.createEdgeJoinRequest(publicKeyCompressed, currentFcnt);
 
-                if (!packet) {
-                    console.error(`[!] Failed to create EdgeJoinRequest packet. Packet was ${packet}`);
-                    return; 
-                }
-                this.packetForwarder.registerDownlinkHandler((phyPayload) => {
-                  device.handleDataDownlink(phyPayload, privateKey);
-                });
-                
-                // INCREMENT it for next time
-                device.fcnt += 1; 
-                
-                this.packetForwarder.emit("edge_join_forward", packet, this.gwId);
-                console.log(`[*] Edge join request sent. Next FCnt will be: ${device.fcnt}`);
+            if (device.isEdge()) {
+
+              const { publicKeyCompressed, privateKey } =
+                device.generateCompressedPublicKey();
+
+              device.tempPrivateKey = privateKey;
+
+              const packet = device.createEdgeJoinRequest(
+                publicKeyCompressed,
+                device.fcnt
+              );
+
+              this.packetForwarder.registerDownlinkHandler((phyPayload) => {
+                device.handleDataDownlink(phyPayload, privateKey);
+              });
+
+              device.once("EdgeJoinAccepted", () => {
+                console.log(`[++++] Edge join completed for ${device.id}`);
+
+                this.pendingJoins.delete(devNonceHex);
+                resolve(device.id); 
+              });
+
+              device.fcnt += 1;
+
+              this.packetForwarder.emit("edge_join_forward", packet, this.gwId);
             }
-            this.pendingJoins.delete(devNonceHex);
-            resolve(device.id); 
+            else {
+              this.pendingJoins.delete(devNonceHex);
+              resolve(device.id);
+            }
           }
         }
       });
@@ -212,6 +212,31 @@ const Experiment3 = class {
       deviceNumberCounter++;
     }
   };
+  processNetworkTraffic = async () => {
+    return new Promise(async (resolve, reject) => {
+      try {
+              const payload = Buffer.from("Ciao!", "utf8");
+              const fCnt = 2;
+              const nodeId = "121-13";
+              const device = this.devices[nodeId];
+              const gw_id = "0000000000000004";
+
+              for (let i = 0; i < 1; i++) {
+                console.log("To Send a packet",i);
+
+                const packet = device.createLoRaPacket(payload , fCnt, device.session);
+                const packetForwarder = this.packetForwarders[gw_id];
+                const udpPacket = await packetForwarder.encodeUplink(packet, null, gw_id);
+                await packetForwarder.sendUplink(udpPacket);
+              }
+
+              resolve("Processed Packets.");
+            } catch (error) {
+              console.error(error);
+              reject(error);
+            }
+    });
+  };
 
   processSnapshotFile = async (snapshotFile) => {
     // READ CSV FILE
@@ -312,22 +337,38 @@ const Experiment3 = class {
       // We only reach here if Part 1 didn't throw an error.
       console.log("Now reading snapshot files...");
       
-      const snapshotFiles = fs.readdirSync(this.packetDataFolder);
+      // const snapshotFiles = fs.readdirSync(this.packetDataFolder);
 
-      for (const snapshotFile of snapshotFiles) {
-        console.log(`Processing ${snapshotFile}...`);
+      // for (const snapshotFile of snapshotFiles) {
+      //   console.log(`Processing ${snapshotFile}...`);
         
-        // We use a nested try/catch here so one bad file doesn't stop the whole script
-        try {
-          const result = await this.processSnapshotFile(snapshotFile, this.deviceList);
-          console.log(result);
-        } catch (fileErr) {
-          console.error(`Failed to process file ${snapshotFile}:`, fileErr);
-        }
+      //   // We use a nested try/catch here so one bad file doesn't stop the whole script
+      //   try {
+      //     const result = await this.processSnapshotFile(snapshotFile, this.deviceList);
+      //     console.log(result);
+      //   } catch (fileErr) {
+      //     console.error(`Failed to process file ${snapshotFile}:`, fileErr);
+      //   }
 
-        // Add delay between files
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      //   // Add delay between files
+      //   await new Promise((resolve) => setTimeout(resolve, 1000));
+      // }
+      //Test//
+      try {
+        const result = await this.processNetworkTraffic();
+        console.log(result);
+      } catch (fileErr) {
+        console.error(`Failed to process`, fileErr);
       }
+      // device.on("EdgeJoinAccepted",() =>
+      //             console.log(`[++++] Now You can send network traffic for ${device.id}!!!`),
+      //             this.emit("Traffic")
+                    
+      //           );
+           
+      // await new Promise((resolve) => setTimeout(resolve, 1000));
+
+
       this.packetForwarder.stopPulling();
       console.log("Experiment completed.");
 

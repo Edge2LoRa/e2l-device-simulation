@@ -3,5 +3,8 @@
     "@fast-csv/parse": "^5.0.0",
     "lora-packet": "^0.8.25",
     "mqtt": "^5.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3"
   }
 }

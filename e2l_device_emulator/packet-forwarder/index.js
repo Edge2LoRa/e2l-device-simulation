@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const EventEmitter = require('events');
 const lora_packet = require('lora-packet');
 const { decrypt } = require("lora-packet/out/lib/crypto");
+const Device = require("../device");
 
 
 class PacketForwarder extends EventEmitter {
